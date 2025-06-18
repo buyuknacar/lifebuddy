@@ -4,9 +4,10 @@
 data/
 logs/
 
-# Python files (except __init__.py)
+# Python files (except __init__.py and apple_health.py)
 *.py
 !__init__.py
+!app/ingestion/apple_health.py
 
 # Poetry and Python environment
 .venv/
