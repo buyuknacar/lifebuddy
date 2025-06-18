@@ -9,8 +9,16 @@ readme = "README.md"
 packages = [{include = "app"}]
 
 [tool.poetry.dependencies]
-python = "^3.9"
+python = ">=3.9,<3.9.7 || >3.9.7,<4.0"
 lxml = "^5.4.0"
+langchain = "^0.3.25"
+langchain-openai = "^0.3.24"
+langchain-ollama = "^0.3.3"
+fastapi = "^0.115.13"
+uvicorn = "^0.34.3"
+streamlit = "^1.45.1"
+python-dotenv = "^1.1.0"
+requests = "^2.32.4"
 
 [tool.poetry.group.dev.dependencies]
 

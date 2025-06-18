@@ -4,10 +4,18 @@
 data/
 logs/
 
-# Python files (except __init__.py and apple_health.py)
+# Python files (except core LLM infrastructure)
 *.py
 !__init__.py
 !app/ingestion/apple_health.py
+!app/agents/README.md
+!app/agents/intent_classifier.py
+!app/agents/base_agent.py
+!app/agents/router.py
+!app/core/llm_provider.py
+!app/core/ollama_setup.py
+!tests/test_intent_routing.py
+!setup_ollama.py
 
 # Poetry and Python environment
 .venv/
