@@ -9,12 +9,12 @@ The LifeBuddy agent system uses **intent classification** and **specialized rout
 ### Open Source (Recommended)
 - **Ollama**: Local models, privacy-first, free
   ```bash
-  # Automatic setup
+  # Automatic setup (Windows/macOS/Linux)
   poetry run python setup_ollama.py
   
-  # Or manual install
-  curl -fsSL https://ollama.ai/install.sh | sh
-  ollama pull llama3.2:3b
+  # Or manual install:
+  # Windows: Download from https://ollama.ai/download
+  # macOS/Linux: curl -fsSL https://ollama.ai/install.sh | sh
   ```
 
 ### API Providers

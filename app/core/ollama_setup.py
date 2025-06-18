@@ -48,11 +48,9 @@ class OllamaSetup:
             if self.system == "darwin":  # macOS
                 # Download and install Ollama for macOS
                 subprocess.run([
-                    "curl", "-fsSL", 
-                    "https://ollama.ai/install.sh"
-                ], check=True, stdout=subprocess.PIPE)
-                subprocess.run(["sh"], input=open("/tmp/ollama_install.sh").read(), 
-                             text=True, check=True)
+                    "curl", "-fsSL", "https://ollama.ai/install.sh", "-o", "/tmp/ollama_install.sh"
+                ], check=True)
+                subprocess.run(["sh", "/tmp/ollama_install.sh"], check=True)
                 
             elif self.system == "linux":
                 # Linux installation
@@ -61,15 +59,34 @@ class OllamaSetup:
                 ], shell=True, check=True)
                 
             elif self.system == "windows":
-                print("❌ Windows auto-install not supported yet.")
-                print("Please download Ollama from: https://ollama.ai/download")
-                return False
+                # Windows native installation
+                print("📥 Downloading Ollama for Windows...")
+                import urllib.request
+                installer_url = "https://ollama.ai/download/OllamaSetup.exe"
+                installer_path = "OllamaSetup.exe"
+                
+                urllib.request.urlretrieve(installer_url, installer_path)
+                print("🚀 Running installer (this may require user interaction)...")
+                
+                # Run installer silently if possible
+                result = subprocess.run([installer_path, "/S"], capture_output=True)
+                if result.returncode != 0:
+                    # If silent install fails, run normal installer
+                    print("Silent install failed, running interactive installer...")
+                    subprocess.run([installer_path])
+                
+                # Clean up installer
+                import os
+                if os.path.exists(installer_path):
+                    os.remove(installer_path)
             
             print("✅ Ollama installed successfully!")
             return True
             
-        except subprocess.CalledProcessError as e:
+        except Exception as e:
             print(f"❌ Failed to install Ollama: {e}")
+            if self.system == "windows":
+                print("💡 Manual installation: Download from https://ollama.ai/download")
             return False
     
     def start_ollama_server(self):
@@ -82,7 +99,16 @@ class OllamaSetup:
         
         try:
             # Start server in background
-            if self.system in ["darwin", "linux"]:
+            if self.system == "windows":
+                # On Windows, Ollama runs as a service after installation
+                # Try to start it via the executable
+                subprocess.Popen(
+                    ["ollama", "serve"],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    creationflags=subprocess.CREATE_NO_WINDOW
+                )
+            else:  # macOS and Linux
                 subprocess.Popen(
                     ["ollama", "serve"],
                     stdout=subprocess.DEVNULL,
@@ -90,18 +116,22 @@ class OllamaSetup:
                 )
             
             # Wait for server to start
-            for i in range(10):
+            for i in range(15):  # Give Windows a bit more time
                 time.sleep(2)
                 if self.is_ollama_running():
                     print("✅ Ollama server started successfully!")
                     return True
-                print(f"⏳ Waiting for server... ({i+1}/10)")
+                print(f"⏳ Waiting for server... ({i+1}/15)")
             
             print("❌ Failed to start Ollama server")
+            if self.system == "windows":
+                print("💡 Try manually: Start Ollama from Start Menu or run 'ollama serve' in cmd")
             return False
             
         except Exception as e:
             print(f"❌ Error starting server: {e}")
+            if self.system == "windows":
+                print("💡 Try manually: Start Ollama from Start Menu or run 'ollama serve' in cmd")
             return False
     
     def pull_model(self, model_name: str | None = None):
