@@ -11,6 +11,10 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from dotenv import load_dotenv
 from app.agents.router import health_router
+from app.core.logger import get_logger
+
+# Initialize logger for test errors
+logger = get_logger(__name__)
 
 # Load environment variables
 load_dotenv()

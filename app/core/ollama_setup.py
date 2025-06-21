@@ -10,6 +10,11 @@ import platform
 import requests
 from pathlib import Path
 
+from app.core.logger import get_ollama_logger
+
+# Initialize logger
+logger = get_ollama_logger()
+
 
 class OllamaSetup:
     """Automated Ollama setup and management."""
@@ -39,10 +44,10 @@ class OllamaSetup:
     def install_ollama(self):
         """Install Ollama based on the operating system."""
         if self.is_ollama_installed():
-            print("✅ Ollama is already installed")
+            logger.info("Ollama is already installed")
             return True
         
-        print("📦 Installing Ollama...")
+        logger.info("Installing Ollama...")
         
         try:
             if self.system == "darwin":  # macOS

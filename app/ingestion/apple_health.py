@@ -15,6 +15,11 @@ from pathlib import Path
 import sqlite3
 from typing import Dict, List, Tuple, Optional
 
+from app.core.logger import get_health_logger
+
+# Initialize logger
+logger = get_health_logger()
+
 def get_user_timezone():
     """
     Detect user's timezone using system datetime.
@@ -26,7 +31,7 @@ def get_user_timezone():
     timezone_name = str(local_dt.tzinfo)  # e.g., "America/Los_Angeles" or "UTC-07:00"
     timezone_offset = local_dt.strftime('%z')  # e.g., "-0700"
     
-    print(f"🌍 Detected user timezone: {timezone_name} ({timezone_offset})")
+    logger.info(f"Detected user timezone: {timezone_name} ({timezone_offset})")
     
     return {
         'name': timezone_name,
@@ -60,7 +65,7 @@ class AppleHealthParser:
         
     def create_database(self):
         """Create SQLite database with timezone-aware schema"""
-        print("🗄️ Creating timezone-aware SQLite database...")
+        logger.info("Creating timezone-aware SQLite database...")
         
         # Ensure data directory exists
         self.db_path.parent.mkdir(exist_ok=True)
@@ -155,13 +160,13 @@ class AppleHealthParser:
         conn.commit()
         conn.close()
         
-        print(f"✅ Timezone-aware database created at: {self.db_path}")
-        print(f"🌍 Using timezone: {self.user_timezone['name']} ({self.user_timezone['offset']})")
+        logger.info(f"Timezone-aware database created at: {self.db_path}")
+        logger.info(f"Using timezone: {self.user_timezone['name']} ({self.user_timezone['offset']})")
     
     def parse_xml(self):
         """Parse XML and extract core health metrics"""
-        print(f"🔍 Parsing Apple Health XML: {self.xml_path}")
-        print(f"📁 File size: {self.xml_path.stat().st_size / (1024*1024):.1f} MB")
+        logger.info(f"Parsing Apple Health XML: {self.xml_path}")
+        logger.info(f"File size: {self.xml_path.stat().st_size / (1024*1024):.1f} MB")
         
         # Use iterparse for memory efficiency with large XML files
         # This processes elements one at a time instead of loading entire file
@@ -484,13 +489,13 @@ def main():
     xml_path = "data/raw/apple_health_export/export.xml"
     
     if not os.path.exists(xml_path):
-        print(f"❌ File not found: {xml_path}")
-        print("Please ensure your Apple Health export is in the correct location.")
+        logger.error(f"File not found: {xml_path}")
+        logger.info("Please ensure your Apple Health export is in the correct location.")
         return
     
     parser = AppleHealthParser(xml_path)
     
-    print("🚀 Starting focused Apple Health parsing...")
+    logger.info("Starting focused Apple Health parsing...")
     
     # Create database with optimized schema
     parser.create_database()

@@ -14,6 +14,10 @@ from app.core.llm_provider import LLMProvider
 from app.core.health_tools import get_fitness_tools, get_nutrition_tools, get_wellness_tools, get_general_tools
 from app.core.health_data_service import HealthDataService
 from app.agents.intent_classifier import IntentClassifier, HealthIntent
+from app.core.logger import get_agent_logger
+
+# Initialize logger
+logger = get_agent_logger()
 
 
 class HealthSessionState(TypedDict):
@@ -126,7 +130,7 @@ class HealthAgentGraph:
                 "offset": timezone_info["timezone_offset"]
             }
         except Exception as e:
-            print(f"⚠️ Error loading timezone: {e}")
+            logger.warning(f"Error loading timezone: {e}")
             state["user_timezone"] = {"name": "UTC", "offset": "+0000"}
         
         # Initialize session metadata
@@ -149,7 +153,7 @@ class HealthAgentGraph:
             intent = self.intent_classifier.classify(str(latest_message.content))
             state["current_intent"] = intent.value
         except Exception as e:
-            print(f"⚠️ Intent classification error: {e}")
+            logger.warning(f"Intent classification error: {e}")
             state["current_intent"] = "general"
         
         return state
@@ -258,7 +262,7 @@ Keep responses concise and personable."""),
             }
             
         except Exception as e:
-            print(f"⚠️ General conversation error: {e}")
+            logger.warning(f"General conversation error: {e}")
             state["current_analysis"] = {
                 "domain": "general_conversation", 
                 "result": "Hello! I'm LifeBuddy, your AI health companion. I can help you analyze your health data including steps, workouts, heart rate, and more. What would you like to know about your health?",
@@ -331,7 +335,7 @@ Thought: {agent_scratchpad}
             state["tools_used"] = [tool.name for tool in tools]
             
         except Exception as e:
-            print(f"⚠️ {domain.title()} analysis error: {e}")
+            logger.warning(f"{domain.title()} analysis error: {e}")
             state["current_analysis"] = {
                 "domain": domain,
                 "result": f"I encountered an error analyzing your {domain} data: {str(e)}",
@@ -373,7 +377,7 @@ Thought: {agent_scratchpad}
             return result["final_response"]
             
         except Exception as e:
-            print(f"⚠️ Graph execution error: {e}")
+            logger.error(f"Graph execution error: {e}")
             return f"I encountered an error processing your request: {str(e)}"
     
     def route_query(self, query: str, context: str = "") -> Dict[str, Any]:

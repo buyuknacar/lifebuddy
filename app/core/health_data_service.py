@@ -9,6 +9,11 @@ from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Any
 import pandas as pd
 
+from app.core.logger import get_logger
+
+# Initialize logger
+logger = get_logger(__name__)
+
 
 class HealthDataService:
     """Service for accessing health data from SQLite database with timezone awareness."""
@@ -55,7 +60,7 @@ class HealthDataService:
                         'offset': local_dt.strftime('%z')
                     }
         except Exception as e:
-            print(f"⚠️ Error getting user timezone: {e}")
+            logger.warning(f"Error getting user timezone: {e}")
             # Fallback to system timezone
             local_dt = datetime.now().astimezone()
             return {

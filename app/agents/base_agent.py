@@ -8,6 +8,10 @@ from langchain_core.output_parsers import StrOutputParser
 from langchain.agents import create_react_agent, AgentExecutor
 from langchain import hub
 from app.core.llm_provider import llm_provider
+from app.core.logger import get_agent_logger
+
+# Initialize logger
+logger = get_agent_logger()
 
 
 class BaseHealthAgent(ABC):
@@ -93,7 +97,7 @@ Response:"""
                     return result.get("output", "Sorry, I couldn't process that request.")
                 except Exception as e:
                     # Fallback to simple chain if agent fails
-                    print(f"Agent execution failed: {e}, falling back to simple response")
+                    logger.warning(f"Agent execution failed: {e}, falling back to simple response")
         
         # Simple chain fallback
         chain = self.create_simple_chain()

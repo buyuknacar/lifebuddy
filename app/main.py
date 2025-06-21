@@ -8,10 +8,15 @@ import subprocess
 import os
 from pathlib import Path
 
+from app.core.logger import get_logger
+
+# Initialize logger
+logger = get_logger(__name__)
+
 
 def run_fastapi():
     """Run FastAPI backend server."""
-    print("🚀 Starting LifeBuddy FastAPI backend...")
+    logger.info("Starting LifeBuddy FastAPI backend...")
     try:
         import uvicorn
         uvicorn.run(
@@ -22,7 +27,7 @@ def run_fastapi():
             log_level="info"
         )
     except ImportError:
-        print("❌ uvicorn not found. Install with: poetry install")
+        logger.error("uvicorn not found. Install with: poetry install")
         sys.exit(1)
 
 

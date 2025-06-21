@@ -1,0 +1,18 @@
+# This file ensures the data/raw/apple_health_export/ directory exists
+#
+# 📱 PLACE YOUR APPLE HEALTH EXPORT HERE:
+# 
+# For Docker users:
+#   1. Export health data from iPhone Health app
+#   2. Save export.zip to ~/Downloads/
+#   3. Container will auto-detect and process it
+#
+# For manual setup:
+#   1. Export health data from iPhone Health app  
+#   2. Copy export.zip to this directory
+#   3. Run: python app/ingestion/apple_health.py data/raw/apple_health_export/export.zip
+#
+# Files that will appear here (excluded by .gitignore):
+# - export.zip (your Apple Health export)
+# - export.xml (extracted health data)
+# - Other Apple Health related files 

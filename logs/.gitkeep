@@ -1,0 +1,15 @@
+# This file ensures the logs/ directory exists for application logging
+#
+# LifeBuddy uses Python's logging library with both console and file output.
+# Logs are automatically rotated (10MB max, 5 backups) to prevent disk bloat.
+#
+# Log files that will appear here (excluded by .gitignore):
+# - app.log (General application logs - rotating)
+# - health_processing.log (Apple Health data processing)
+# - fastapi.log (FastAPI backend logs)
+# - streamlit.log (Streamlit frontend logs)
+# - ollama.log (Ollama connection and model logs)
+# - agents.log (AI agent interactions)
+#
+# Console output: INFO level and above with emojis
+# File output: DEBUG level and above with full timestamps 

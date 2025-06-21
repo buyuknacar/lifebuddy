@@ -1,0 +1,11 @@
+# This file ensures the data/ directory structure is preserved in git
+# 
+# Expected structure:
+# data/
+# ├── lifebuddy.db (SQLite database - NEVER committed)
+# └── raw/
+#     └── apple_health_export/
+#         ├── export.xml (Apple Health data - NEVER committed)
+#         └── export.zip (Apple Health export - NEVER committed)
+#
+# All actual data files are excluded by .gitignore for privacy protection. 

@@ -1,0 +1,7 @@
+# This file ensures the data/raw/ directory exists
+# 
+# This is where raw health data files will be stored:
+# - Apple Health exports (export.xml, export.zip)
+# - Other raw health data sources (future)
+#
+# All files in this directory are excluded by .gitignore for privacy. 

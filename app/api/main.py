@@ -16,6 +16,10 @@ from pydantic import BaseModel, Field
 from app.core.health_data_service import HealthDataService
 from app.agents.health_graph import HealthAgentGraph
 from app.core.llm_provider import LLMProvider
+from app.core.logger import get_api_logger
+
+# Initialize logger
+logger = get_api_logger()
 
 
 # Pydantic models for API requests/responses
@@ -55,29 +59,29 @@ async def lifespan(app: FastAPI):
     """Initialize services on startup."""
     global health_service, health_agent
     
-    print("🚀 Starting LifeBuddy FastAPI backend...")
+    logger.info("Starting LifeBuddy FastAPI backend...")
     
     # Initialize health data service
     try:
         health_service = HealthDataService()
-        print("✅ Health data service initialized")
+        logger.info("Health data service initialized")
     except Exception as e:
-        print(f"❌ Failed to initialize health data service: {e}")
+        logger.error(f"Failed to initialize health data service: {e}")
         raise
     
     # Initialize health agent
     try:
         health_agent = HealthAgentGraph()
-        print("✅ Health agent initialized")
+        logger.info("Health agent initialized")
     except Exception as e:
-        print(f"❌ Failed to initialize health agent: {e}")
+        logger.error(f"Failed to initialize health agent: {e}")
         raise
     
-    print("🎉 LifeBuddy backend ready!")
+    logger.info("LifeBuddy backend ready!")
     yield
     
     # Cleanup on shutdown
-    print("🔄 Shutting down LifeBuddy backend...")
+    logger.info("Shutting down LifeBuddy backend...")
 
 
 # Create FastAPI app
@@ -413,7 +417,7 @@ async def websocket_endpoint(websocket: WebSocket):
                 
     except WebSocketDisconnect:
         manager.disconnect(websocket)
-        print(f"WebSocket disconnected for session: {session_id}")
+        logger.info(f"WebSocket disconnected for session: {session_id}")
 
 
 if __name__ == "__main__":
