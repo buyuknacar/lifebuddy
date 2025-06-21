@@ -1,1 +1,36 @@
-# Multi-container setup (ChromaDB, App) 
+version: '3.8'
+
+services:
+  lifebuddy:
+    build: .
+    container_name: lifebuddy-app
+    ports:
+      - "8000:8000"   # FastAPI backend
+      - "8501:8501"   # Streamlit frontend
+      - "11434:11434" # Ollama API (optional external access)
+    volumes:
+      # Mount data directory for persistence
+      - ./data:/app/data
+      # Mount Downloads folder for automatic Apple Health export detection
+      - ~/Downloads:/host/Downloads:ro  # Read-only access to Downloads
+    environment:
+      - LLM_PROVIDER=ollama
+      - OLLAMA_BASE_URL=http://localhost:11434
+      - OLLAMA_MODEL=llama3.2:3b
+      - DATABASE_PATH=/app/data/lifebuddy.db
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health/status"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    # Resource limits (adjust based on your system)
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+          cpus: '2.0'
+        reservations:
+          memory: 2G
+          cpus: '1.0' 
