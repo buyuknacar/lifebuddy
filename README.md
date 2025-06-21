@@ -2,7 +2,8 @@
 
 **Your Personal AI Health & Wellness Companion**
 
-LifeBuddy is an open-source, privacy-first health analytics platform that transforms your Apple Health data into personalized insights using AI. Currently focused on health data analysis and tools, with planned expansion into comprehensive fitness, diet, and wellness coaching. All data stays local on your machine - no subscriptions, no data sharing, just intelligent health insights powered by your own data.
+LifeBuddy is an open-source, privacy-first health comapnion that transforms your Apple Health data into personalized insights using AI. Built with a "Bring Your Own API" architecture - use local models (free) or your own API keys for maximum privacy and control. Currently focused on health data analysis and tools, with planned expansion into comprehensive **personal fitness, diet, and wellness coaching**. All data stays local on your machine - no subscriptions, no data sharing, just intelligent health insights powered by your own data.
+
 
 ## 🚀 Development Phases
 
@@ -36,6 +37,7 @@ LifeBuddy is an open-source, privacy-first health analytics platform that transf
 - 🧠 **Vector Memory**: Long-term memory integration for personalized conversations
 - 👤 **Personal Profile**: Markdown-based profile for consistent AI interactions
 - 🎯 **Goal Tracking**: Current and long-term goals alignment with AI coaching
+
 
 ## 🐳 Docker Setup (Recommended)
 
@@ -139,16 +141,30 @@ poetry run streamlit run app/ui/streamlit_app.py
 
 ## 🔧 Configuration
 
-### AI Model Providers
+### AI Provider Setup
 
-LifeBuddy supports multiple AI providers:
+**Option 1: Local (Recommended)**
+```bash
+# Default setup - no API keys needed
+./quick-start.sh
+# Uses Ollama locally - completely free and private
+```
 
-- **Ollama** (default, runs locally, free)
-- **OpenAI** (requires API key)
-- **Anthropic Claude** (requires API key)
-- **Google Gemini** (requires API key)
+**Option 2: Bring Your Own API**
+```bash
+# Add your API keys to docker-compose.yml or environment:
+export OPENAI_API_KEY="your-key-here"
+export ANTHROPIC_API_KEY="your-key-here"
+export GOOGLE_API_KEY="your-key-here"
 
-Select your preferred provider in the Streamlit interface.
+# Then select your preferred provider in the Streamlit interface
+```
+
+**Why Bring Your Own API?**
+- 🔒 **Maximum Privacy**: Your API keys, your control
+- 💰 **Transparent Costs**: See exactly what you're paying for
+- 🚫 **No Middleman**: Direct relationship with AI providers
+- 🎛️ **Full Control**: Choose models, rate limits, and usage patterns
 
 ## 🐳 Docker Details
 
