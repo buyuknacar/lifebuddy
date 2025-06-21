@@ -4,7 +4,7 @@ Migrates existing router and agent functionality to a graph-based agentic approa
 """
 import uuid
 from datetime import datetime
-from typing import Dict, List, Any, TypedDict, Annotated, Literal
+from typing import Dict, List, Any, TypedDict, Annotated, Literal, Optional
 from langchain_core.messages import BaseMessage, HumanMessage, AIMessage
 from langgraph.graph import StateGraph, END
 from langgraph.graph.message import add_messages
@@ -165,6 +165,7 @@ User is in timezone: {timezone_name} ({timezone_offset})
 
 You have access to tools to get the user's actual health data including steps, heart rate, workouts, and activity summaries. Use these tools to provide personalized, data-driven advice based on their real metrics.
 
+Always speak directly to the user using "you" and "your" (not "the user").
 Keep responses practical, encouraging, and data-driven."""
         )
     
@@ -184,6 +185,7 @@ User is in timezone: {timezone_name} ({timezone_offset})
 
 You have access to tools to get the user's weight progress and activity data to calculate their caloric needs and provide personalized nutrition advice.
 
+Always speak directly to the user using "you" and "your" (not "the user").
 Keep responses evidence-based, balanced, and practical."""
         )
     
@@ -201,27 +203,57 @@ Keep responses evidence-based, balanced, and practical."""
 
 User is in timezone: {timezone_name} ({timezone_offset})
 
+Always speak directly to the user using "you" and "your" (not "the user").
 Keep responses supportive, thoughtful, and holistic."""
         )
     
     def _general_analysis(self, state: HealthSessionState) -> HealthSessionState:
-        """Execute general health data analysis using existing tools and prompts."""
-        return self._execute_specialized_analysis(
-            state,
-            "general",
-            self.general_tools,
-            """You are a general health data analyst AI with access to comprehensive health data. Help users with:
-- Health data summaries and trends
-- Cross-metric correlations and insights
-- General questions about their health patterns
-- Data interpretation and explanations
+        """Handle general conversation using fallback persona - no health data analysis."""
+        from langchain_core.prompts import ChatPromptTemplate
+        
+        # For general/conversational queries, use simple LLM without tools
+        latest_message = state["messages"][-1]
+        user_query = str(latest_message.content)
+        
+        # Use friendly persona for all general intent queries (greetings, casual conversation, non-health topics)
+        persona_prompt = ChatPromptTemplate.from_messages([
+            ("system", """You are LifeBuddy, a friendly AI health companion. You help users analyze their personal health data and provide insights.
 
-User is in timezone: {timezone_name} ({timezone_offset})
+You have access to tools that can analyze:
+- Step counts and activity levels
+- Heart rate and fitness metrics  
+- Workout history and performance
+- Weight tracking and trends
+- Sleep and wellness patterns
 
-You have access to all health data tools including steps, heart rate, workouts, weight, and activity summaries. Use these tools to provide comprehensive analysis and insights.
+For greetings, casual conversation, and non-health topics, be warm and friendly. Introduce your capabilities when appropriate.
+If users ask about specific health data, guide them to ask more specific questions like "show my steps" or "analyze my workouts".
 
-Keep responses clear, analytical, and informative."""
-        )
+Always speak directly to the user using "you" and "your" (not "the user").
+Keep responses concise and personable."""),
+            ("human", "{query}")
+        ])
+        
+        try:
+            chain = persona_prompt | self.llm
+            result = chain.invoke({"query": user_query})
+            response_text = str(result.content) if hasattr(result, 'content') else str(result)
+            
+            state["current_analysis"] = {
+                "domain": "general_conversation",
+                "result": response_text,
+                "tools_used": []
+            }
+            
+        except Exception as e:
+            print(f"⚠️ General conversation error: {e}")
+            state["current_analysis"] = {
+                "domain": "general_conversation", 
+                "result": "Hello! I'm LifeBuddy, your AI health companion. I can help you analyze your health data including steps, workouts, heart rate, and more. What would you like to know about your health?",
+                "tools_used": []
+            }
+        
+        return state
     
     def _execute_specialized_analysis(self, state: HealthSessionState, domain: str, tools: List, system_prompt_template: str) -> HealthSessionState:
         """Execute specialized analysis using ReAct agent (migrated from base_agent.py)."""
@@ -308,7 +340,7 @@ Thought: {agent_scratchpad}
         
         return state
     
-    def chat(self, message: str, session_id: str = None) -> str:
+    def chat(self, message: str, session_id: Optional[str] = None) -> str:
         """Main chat interface for health conversations."""
         # Create initial state
         initial_state = {
@@ -325,8 +357,7 @@ Thought: {agent_scratchpad}
         
         # Execute graph
         try:
-            config = {"configurable": {"thread_id": initial_state["session_id"]}}
-            result = self.compiled_graph.invoke(initial_state, config=config)
+            result = self.compiled_graph.invoke(initial_state)
             return result["final_response"]
             
         except Exception as e:

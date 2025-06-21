@@ -23,13 +23,13 @@ class IntentClassifier:
         self.llm = llm_provider.get_llm()
         self.prompt = PromptTemplate(
             input_variables=["query"],
-            template="""Classify this health query into ONE category:
+            template="""Classify this query into ONE category:
 
 Categories:
-- fitness: exercise, workouts, activity, steps, heart rate, performance
-- nutrition: diet, food, calories, weight, eating habits  
-- wellness: sleep, stress, mood, mental health, journaling
-- general: data questions, summaries, trends, comparisons
+- fitness: specific questions about exercise, workouts, activity levels, steps, heart rate, performance data
+- nutrition: specific questions about diet, food, calories, weight tracking, eating habits  
+- wellness: specific questions about sleep, stress, mood, mental health data
+- general: greetings, casual conversation, non-health questions, or requests for general health summaries
 
 Query: {query}
 

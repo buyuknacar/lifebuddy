@@ -23,8 +23,6 @@ langchain-community = "^0.3.25"
 langgraph = "^0.4.8"
 langgraph-checkpoint-sqlite = "^2.0.10"
 
-[tool.poetry.group.dev.dependencies]
-
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
