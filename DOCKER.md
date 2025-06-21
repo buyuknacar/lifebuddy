@@ -1,47 +1,43 @@
 # 🐳 LifeBuddy Docker Setup
 
-Run LifeBuddy as a complete containerized solution with Ollama, FastAPI, and Streamlit.
-
 ## 🚀 Quick Start
 
-### Option 1: Docker Compose (Recommended)
+### Automated Setup (Recommended)
 
 ```bash
-# Build and start the container
-docker-compose up --build
+# Clone repository
+git clone <repository-url>
+cd lifebuddy
 
-# Or run in background
-docker-compose up -d --build
+# Run automated setup (handles Ollama installation, startup, model download)
+./setup-ollama.sh
 
-# View logs
-docker-compose logs -f
+# Start LifeBuddy
+docker compose up --build
 
-# Stop the container
-docker-compose down
+# Open in browser - http://localhost:8501
 ```
 
-### Option 2: Direct Docker Commands
+### Manual Setup
 
-```bash
-# Build the image
-docker build -t lifebuddy .
+1. **Ensure Ollama is running on your host:**
+   ```bash
+   ollama serve
+   ```
 
-# Run the container
-docker run -d \
-  --name lifebuddy-app \
-  -p 8000:8000 \
-  -p 8501:8501 \
-  -v ./data:/app/data \
-  -v ~/Downloads:/host/Downloads:ro \
-  lifebuddy
+2. **Start LifeBuddy:**
+   ```bash
+   docker compose up --build
+   ```
 
-# View logs
-docker logs -f lifebuddy-app
+3. **Open in browser:**
+   - Streamlit UI: http://localhost:8501
+   - API docs: http://localhost:8000/docs
 
-# Stop the container
-docker stop lifebuddy-app
-docker rm lifebuddy-app
-```
+4. **Optional - Add your Apple Health data:**
+   - Export from iPhone Health app
+   - Save as `~/Downloads/export.xml`
+   - Restart container to auto-process
 
 ## 📱 Access the Application
 
@@ -75,8 +71,8 @@ If automatic detection doesn't work:
 
 The Docker container uses several environment variables for configuration:
 
-- `LLM_PROVIDER=ollama` - Default AI provider (Ollama runs locally in container)
-- `OLLAMA_BASE_URL=http://localhost:11434` - Ollama server URL
+- `LLM_PROVIDER=ollama` - Default AI provider (connects to host Ollama)
+- `OLLAMA_BASE_URL=http://host.docker.internal:11434` - Host Ollama URL
 - `OLLAMA_MODEL=llama3.2:3b` - Default Ollama model
 - `DATABASE_PATH=/app/data/lifebuddy.db` - SQLite database location
 
@@ -84,7 +80,7 @@ The Docker container uses several environment variables for configuration:
 
 **Important**: The `LLM_PROVIDER=ollama` environment variable sets the **default** provider, but users can dynamically switch providers through the Streamlit interface:
 
-- **Default (Ollama)**: Uses the local Ollama server running in the container
+- **Default (Ollama)**: Uses the host Ollama server
 - **OpenAI/Anthropic/Google/Azure**: Requires API keys as environment variables
 
 To use external providers, add their API keys to your `docker-compose.yml`:
@@ -104,15 +100,9 @@ The provider selection in the Streamlit UI will override the Docker default for 
 
 ### Resource Limits
 
-Adjust CPU and memory limits in `docker-compose.yml`:
-
-```yaml
-deploy:
-  resources:
-    limits:
-      memory: 4G      # Maximum memory
-      cpus: '2.0'     # Maximum CPU cores
-```
+Container resource limits (reduced since no Ollama):
+- Memory: 2GB limit, 1GB reserved
+- CPU: 1.0 cores limit, 0.5 cores reserved
 
 ## 📂 Data Persistence
 
@@ -137,18 +127,15 @@ docker-compose build --no-cache
 docker-compose up
 ```
 
-### Ollama Model Issues
+### Ollama Connection Issues
 
-```bash
-# Access container shell
-docker exec -it lifebuddy-app bash
+**Error**: "Ollama not found on host"
 
-# Check Ollama status
-ollama list
-
-# Manually pull model
-ollama pull llama3.2:3b
-```
+**Solutions**:
+1. Ensure Ollama is installed: `curl -fsSL https://ollama.ai/install.sh | sh`
+2. Start Ollama server: `ollama serve`
+3. Check if running: `curl http://localhost:11434/api/tags`
+4. Verify model exists: `ollama list`
 
 ### Health Data Not Processing
 
@@ -169,8 +156,8 @@ If ports 8000 or 8501 are already in use, modify `docker-compose.yml`:
 
 ```yaml
 ports:
-  - "8080:8000"   # Use port 8080 instead of 8000
-  - "8502:8501"   # Use port 8502 instead of 8501
+  - "8080:8000"   # Change host port
+  - "8502:8501"   # Change host port
 ```
 
 ## 🔒 Security Notes

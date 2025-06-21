@@ -13,25 +13,42 @@ LifeBuddy is an open-source, privacy-first health analytics platform that transf
 - 🔒 **Privacy First**: Supporting Local Models
 - 🆓 **Open Source**: Free forever, community-driven development
 
-## 🚀 Quick Start (Recommended)
+## 🐳 Docker Setup (Recommended)
 
-### For Everyone (Mac/Windows/Linux)
+**Fully automated setup - everything handled for you:**
 
-1. **Install Docker Desktop**: Download from [docker.com](https://www.docker.com/products/docker-desktop/)
+### Quick Start
+```bash
+# Clone the repository
+git clone <repository-url>
+cd lifebuddy
 
-2. **Run LifeBuddy**:
-   ```bash
-   docker-compose up --build
-   ```
+# Install Docker Desktop (if not already installed)
+# Download from: https://www.docker.com/products/docker-desktop/
 
-3. **Open in your browser**: http://localhost:8501
+# Run automated setup (installs Ollama, starts services, downloads model)
+./setup-ollama.sh
 
-4. **Optional - Add your health data**:
-   - Export your Apple Health data (Health app → Profile → Export All Health Data)
-   - Save the export.zip to your Downloads folder
-   - LifeBuddy will automatically detect and process it!
+# Start LifeBuddy
+docker compose up --build
 
-That's it! 🎉
+# Open in browser
+open http://localhost:8501
+```
+
+### Add Your Health Data (Optional)
+1. Export health data from iPhone Health app
+2. Save as `~/Downloads/export.xml` 
+3. Restart container - data will be auto-processed
+
+**What the setup script does:**
+- ✅ Installs Ollama if not present
+- ✅ Starts Ollama server automatically  
+- ✅ Downloads the AI model (llama3.2:3b)
+- ✅ Sets up auto-start on login (optional)
+- ✅ Verifies everything is working
+
+**Why this approach?** The container connects to Ollama running on your host machine, avoiding slow model downloads every time you start the container. This makes startup instant while keeping all your data local and secure.
 
 ---
 
