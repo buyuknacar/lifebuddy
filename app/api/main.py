@@ -34,6 +34,7 @@ class ChatMessage(BaseModel):
     message: str = Field(..., description="User message to the health agent")
     session_id: Optional[str] = Field(None, description="Optional session ID for conversation continuity")
     provider: Optional[str] = Field(None, description="LLM provider to use (ollama, openai, anthropic, google, azure)")
+    model: Optional[str] = Field(None, description="Specific model to use (e.g., gpt-4o, claude-3-sonnet-20240229)")
 
 
 class ChatResponse(BaseModel):

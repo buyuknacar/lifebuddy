@@ -3,7 +3,6 @@ LLM Provider abstraction supporting multiple providers through LangChain.
 Ollama is the primary open-source option, with API-based providers available.
 """
 import os
-from typing import Optional
 from langchain_core.language_models import BaseChatModel
 
 
@@ -49,10 +48,13 @@ class LLMProvider:
         if not api_key:
             raise ValueError("OPENAI_API_KEY environment variable is required")
         
-        model = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+        model = os.getenv("OPENAI_MODEL", "gpt-4o")
         return ChatOpenAI(
             model=model,
-            temperature=0.1
+            temperature=0.1,
+            max_completion_tokens=1024,
+            timeout=60,
+            max_retries=2
         )
     
     def _get_anthropic_llm(self) -> BaseChatModel:
@@ -66,10 +68,14 @@ class LLMProvider:
         if not api_key:
             raise ValueError("ANTHROPIC_API_KEY environment variable is required")
         
-        model = os.getenv("ANTHROPIC_MODEL", "claude-3-haiku-20240307")
+        model = os.getenv("ANTHROPIC_MODEL", "claude-3-sonnet-20240229")
         return ChatAnthropic(
-            model=model,
-            temperature=0.1
+            model_name=model,
+            temperature=0.1,
+            max_tokens_to_sample=1024,
+            timeout=60,
+            max_retries=2,
+            stop=None
         )
     
     def _get_google_llm(self) -> BaseChatModel:
@@ -83,10 +89,13 @@ class LLMProvider:
         if not api_key:
             raise ValueError("GOOGLE_API_KEY environment variable is required")
         
-        model = os.getenv("GOOGLE_MODEL", "gemini-1.5-flash")
+        model = os.getenv("GOOGLE_MODEL", "gemini-2.0-flash-001")
         return ChatGoogleGenerativeAI(
             model=model,
-            temperature=0.1
+            temperature=0.1,
+            max_tokens=1024,
+            timeout=60,
+            max_retries=2
         )
     
     def _get_azure_llm(self) -> BaseChatModel:
@@ -102,7 +111,11 @@ class LLMProvider:
         
         return AzureChatOpenAI(
             azure_deployment=deployment,
-            temperature=0.1
+            api_version=os.getenv("AZURE_OPENAI_API_VERSION", "2024-05-01-preview"),
+            temperature=0.1,
+            max_tokens=1024,
+            timeout=60,
+            max_retries=2
         )
 
 
