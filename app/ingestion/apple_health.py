@@ -1,23 +1,46 @@
 #!/usr/bin/env python3
 """
-Apple Health XML Parser - Focused on Core Metrics
+Apple Health XML Parser - Focused on Core Metrics with Timezone Awareness
 
 Parses Apple Health export XML for key health metrics and creates SQLite database.
 Focus on simplicity and the metrics that matter most for health insights.
+Now includes automatic user timezone detection for accurate daily aggregations.
 """
 
 import xml.etree.ElementTree as ET
 from collections import defaultdict, Counter
-from datetime import datetime, date, timezone
+from datetime import datetime, date, timezone, timedelta
 import os
 from pathlib import Path
 import sqlite3
 from typing import Dict, List, Tuple, Optional
 
+def get_user_timezone():
+    """
+    Detect user's timezone using system datetime.
+    This is the primary method for timezone detection.
+    """
+    local_dt = datetime.now().astimezone()
+    
+    # Get timezone info
+    timezone_name = str(local_dt.tzinfo)  # e.g., "America/Los_Angeles" or "UTC-07:00"
+    timezone_offset = local_dt.strftime('%z')  # e.g., "-0700"
+    
+    print(f"🌍 Detected user timezone: {timezone_name} ({timezone_offset})")
+    
+    return {
+        'name': timezone_name,
+        'offset': timezone_offset,
+        'tzinfo': local_dt.tzinfo
+    }
+
 class AppleHealthParser:
     def __init__(self, xml_path: str, db_path: str = "data/lifebuddy.db"):
         self.xml_path = Path(xml_path)
         self.db_path = Path(db_path)
+        
+        # Detect user's timezone at initialization
+        self.user_timezone = get_user_timezone()
         
         # Core metrics we care about - only the most important health indicators
         self.target_metrics = {
@@ -36,8 +59,8 @@ class AppleHealthParser:
         self.parsed_workouts = []
         
     def create_database(self):
-        """Create SQLite database with simplified schema"""
-        print("🗄️ Creating SQLite database...")
+        """Create SQLite database with timezone-aware schema"""
+        print("🗄️ Creating timezone-aware SQLite database...")
         
         # Ensure data directory exists
         self.db_path.parent.mkdir(exist_ok=True)
@@ -45,28 +68,48 @@ class AppleHealthParser:
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
         
-        # Health records table - stores raw minute-by-minute data
-        # REAL datatype in SQLite: stores floating point numbers with up to 15 decimal places
-        # Perfect for health metrics like 72.5 heart rate, 1.234 km distance, etc.
+        # Drop existing tables for clean overwrite
+        cursor.execute("DROP TABLE IF EXISTS user_settings")
+        cursor.execute("DROP TABLE IF EXISTS health_records")
+        cursor.execute("DROP TABLE IF EXISTS daily_summaries")
+        cursor.execute("DROP TABLE IF EXISTS workouts")
+        
+        # User settings table - stores timezone and other user preferences
         cursor.execute("""
-            CREATE TABLE IF NOT EXISTS health_records (
+            CREATE TABLE user_settings (
+                id INTEGER PRIMARY KEY,
+                timezone_name TEXT NOT NULL,           -- e.g., "America/Los_Angeles"
+                timezone_offset TEXT NOT NULL,         -- e.g., "-0700"
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        
+        # Insert user timezone
+        cursor.execute("""
+            INSERT INTO user_settings (id, timezone_name, timezone_offset)
+            VALUES (1, ?, ?)
+        """, (self.user_timezone['name'], self.user_timezone['offset']))
+        
+        # Health records table - stores raw minute-by-minute data in user's timezone
+        cursor.execute("""
+            CREATE TABLE health_records (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 record_type VARCHAR(100) NOT NULL,     -- e.g. 'HKQuantityTypeIdentifierStepCount'
                 value REAL NOT NULL,                   -- The actual measurement (steps, calories, etc.)
                 unit VARCHAR(20),                      -- 'count', 'Cal', 'km', 'bpm', etc.
-                start_date DATETIME NOT NULL,          -- When measurement started (UTC)
-                end_date DATETIME,                     -- When measurement ended (UTC)
-                creation_date DATETIME,                -- When recorded in Health app (UTC)
+                start_date DATETIME NOT NULL,          -- When measurement started (user's timezone)
+                end_date DATETIME,                     -- When measurement ended (user's timezone)
+                creation_date DATETIME,                -- When recorded in Health app (user's timezone)
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP
             )
         """)
         
-        # Daily summaries table - aggregated daily metrics for fast dashboard queries
-        # Strategy: For metrics like weight/BMI that aren't daily, use the most recent value
+        # Daily summaries table - aggregated daily metrics using user's timezone boundaries
         cursor.execute("""
-            CREATE TABLE IF NOT EXISTS daily_summaries (
+            CREATE TABLE daily_summaries (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                date DATE NOT NULL UNIQUE,             -- The date (YYYY-MM-DD)
+                date DATE NOT NULL UNIQUE,             -- The date (YYYY-MM-DD) in user's timezone
                 
                 -- Daily totals (sum all values for the day)
                 steps INTEGER,                         -- Total steps for the day
@@ -81,7 +124,6 @@ class AppleHealthParser:
                 max_heart_rate REAL,                   -- Highest heart rate
                 
                 -- Most recent values for infrequent metrics (weight, BMI, body fat)
-                -- These use the latest measurement within a reasonable time window
                 body_mass_kg REAL,                     -- Most recent weight
                 body_mass_index REAL,                  -- Most recent BMI
                 body_fat_percentage REAL,              -- Most recent body fat %
@@ -90,13 +132,13 @@ class AppleHealthParser:
             )
         """)
         
-        # Workouts table - exercise sessions with detailed metrics
+        # Workouts table - exercise sessions with detailed metrics in user's timezone
         cursor.execute("""
-            CREATE TABLE IF NOT EXISTS workouts (
+            CREATE TABLE workouts (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 workout_type VARCHAR(50),              -- 'Walking', 'Running', 'Cycling', etc.
-                start_date DATETIME NOT NULL,          -- When workout started (UTC)
-                end_date DATETIME,                     -- When workout ended (UTC)
+                start_date DATETIME NOT NULL,          -- When workout started (user's timezone)
+                end_date DATETIME,                     -- When workout ended (user's timezone)
                 duration_minutes REAL,                 -- How long the workout lasted
                 total_energy_burned REAL,              -- Calories burned during workout
                 total_distance_km REAL,                -- Distance covered during workout
@@ -113,7 +155,8 @@ class AppleHealthParser:
         conn.commit()
         conn.close()
         
-        print(f"✅ Database created at: {self.db_path}")
+        print(f"✅ Timezone-aware database created at: {self.db_path}")
+        print(f"🌍 Using timezone: {self.user_timezone['name']} ({self.user_timezone['offset']})")
     
     def parse_xml(self):
         """Parse XML and extract core health metrics"""
@@ -165,9 +208,9 @@ class AppleHealthParser:
         return target_records, workout_count
     
     def _parse_health_record(self, elem) -> Optional[Dict]:
-        """Parse individual health record from XML element"""
+        """Parse individual health record from XML element with timezone awareness"""
         try:
-            # Parse timestamps - convert from Apple Health timezone format to UTC
+            # Parse timestamps - convert to user's timezone instead of UTC
             start_date = self._parse_date(elem.get('startDate'))
             end_date = self._parse_date(elem.get('endDate'))
             creation_date = self._parse_date(elem.get('creationDate'))
@@ -193,7 +236,7 @@ class AppleHealthParser:
             return None
     
     def _parse_workout(self, elem) -> Optional[Dict]:
-        """Parse workout record from XML element"""
+        """Parse workout record from XML element with timezone awareness"""
         try:
             start_date = self._parse_date(elem.get('startDate'))
             end_date = self._parse_date(elem.get('endDate'))
@@ -252,10 +295,10 @@ class AppleHealthParser:
     
     def _parse_date(self, date_str: str) -> Optional[str]:
         """
-        Parse Apple Health date string to UTC datetime string for SQLite storage
+        Parse Apple Health date string and convert to user's timezone for storage
         
         Apple Health exports dates in format: "2023-09-11 20:09:44 -0700"
-        We need to properly handle timezones and convert to UTC for consistent storage
+        Instead of converting to UTC, we convert to user's local timezone for accurate daily boundaries
         """
         if not date_str:
             return None
@@ -276,22 +319,22 @@ class AppleHealthParser:
                     hours = int(tz_part[1:3])
                     minutes = int(tz_part[3:5])
                     
-                    # Create timezone object
-                    from datetime import timedelta
+                    # Create timezone object for Apple Health data
                     tz_offset = timedelta(hours=sign * hours, minutes=sign * minutes)
-                    tz = timezone(tz_offset)
+                    apple_tz = timezone(tz_offset)
                     
-                    # Apply timezone and convert to UTC
-                    dt_with_tz = dt.replace(tzinfo=tz)
-                    dt_utc = dt_with_tz.utctimetuple()
-                    dt_utc_datetime = datetime(*dt_utc[:6])
+                    # Apply Apple Health timezone
+                    dt_with_tz = dt.replace(tzinfo=apple_tz)
                     
-                    return dt_utc_datetime.isoformat()
+                    # Convert to user's local timezone instead of UTC
+                    user_local_dt = dt_with_tz.astimezone(self.user_timezone['tzinfo'])
+                    
+                    return user_local_dt.isoformat()
                 else:
-                    # No timezone info, assume UTC
+                    # No timezone info, assume it's already in user's timezone
                     return dt.isoformat()
             else:
-                # No timezone info, parse as-is
+                # No timezone info, parse as-is and assume user's timezone
                 dt = datetime.fromisoformat(date_str)
                 return dt.isoformat()
                 
@@ -342,18 +385,17 @@ class AppleHealthParser:
     
     def _generate_daily_summaries(self, cursor):
         """
-        Generate daily summaries from health records
+        Generate daily summaries from health records using user's timezone
         
-        Strategy for different metric types:
-        1. TOTALS (steps, calories, exercise time): SUM all values for the day
-        2. AVERAGES (heart rate): AVG of all readings for the day  
-        3. RECENT VALUES (weight, BMI, body fat): Use most recent measurement within 7 days
+        Since all data is now stored in user's timezone, DATE() function will work correctly
+        for daily aggregations without timezone boundary issues.
         """
-        print("📋 Generating daily summaries...")
+        print("📋 Generating timezone-aware daily summaries...")
         
         # Efficient aggregation query that handles missing data properly
+        # Now works correctly because all timestamps are in user's timezone
         cursor.execute("""
-            INSERT OR REPLACE INTO daily_summaries (
+            INSERT INTO daily_summaries (
                 date, steps, active_energy_burned, basal_energy_burned, 
                 exercise_time_minutes, distance_walking_km, 
                 avg_heart_rate, min_heart_rate, max_heart_rate,
@@ -362,7 +404,7 @@ class AppleHealthParser:
             SELECT 
                 DATE(start_date) as date,
                 
-                -- Daily totals: Sum all measurements for the day
+                -- Daily totals: Sum all measurements for the day (now timezone-correct)
                 SUM(CASE WHEN record_type = 'HKQuantityTypeIdentifierStepCount' THEN value END) as steps,
                 SUM(CASE WHEN record_type = 'HKQuantityTypeIdentifierActiveEnergyBurned' THEN value END) as active_energy_burned,
                 SUM(CASE WHEN record_type = 'HKQuantityTypeIdentifierBasalEnergyBurned' THEN value END) as basal_energy_burned,
@@ -385,7 +427,7 @@ class AppleHealthParser:
             ORDER BY date
         """)
         
-        print("✅ Daily summaries generated!")
+        print("✅ Timezone-aware daily summaries generated!")
     
     def print_summary(self):
         """Print summary of parsed data for verification"""
