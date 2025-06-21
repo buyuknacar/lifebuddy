@@ -26,11 +26,12 @@ cd lifebuddy
 # Install Docker Desktop (if not already installed)
 # Download from: https://www.docker.com/products/docker-desktop/
 
-# Run automated setup (installs Ollama, starts services, downloads model)
-./setup-ollama.sh
+# One-command setup and start (recommended)
+./quick-start.sh
 
-# Start LifeBuddy
-docker compose up --build
+# Or manual setup:
+# ./deployment/setup-ollama.sh
+# cd deployment && docker compose up --build
 
 # Open in browser
 open http://localhost:8501
@@ -61,10 +62,10 @@ open http://localhost:8501
 poetry install
 
 # Setup local AI (Ollama)
-poetry run python setup_ollama.py
+poetry run python deployment/setup_ollama.py
 
 # Or with custom model
-poetry run python setup_ollama.py --model llama3.2:1b
+poetry run python deployment/setup_ollama.py --model llama3.2:1b
 
 # Test the system
 poetry run python tests/test_intent_routing.py
@@ -118,7 +119,7 @@ Select your preferred provider in the Streamlit interface.
 
 ## 🐳 Docker Details
 
-For more Docker configuration options, see [DOCKER.md](DOCKER.md).
+For more Docker configuration options, see [DOCKER.md](deployment/DOCKER.md).
 
 ## 📋 System Requirements
 

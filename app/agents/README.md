@@ -10,7 +10,7 @@ The LifeBuddy agent system uses **intent classification** and **specialized rout
 - **Ollama**: Local models, privacy-first, free
   ```bash
   # Automatic setup (Windows/macOS/Linux)
-  poetry run python setup_ollama.py
+  poetry run python deployment/setup_ollama.py
   
   # Or manual install:
   # Windows: Download from https://ollama.ai/download
@@ -27,7 +27,7 @@ The LifeBuddy agent system uses **intent classification** and **specialized rout
 
 ```bash
 # Setup Ollama (recommended)
-poetry run python setup_ollama.py
+poetry run python deployment/setup_ollama.py
 
 # Test the agents
 poetry run python tests/test_intent_routing.py

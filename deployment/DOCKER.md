@@ -10,10 +10,10 @@ git clone <repository-url>
 cd lifebuddy
 
 # Run automated setup (handles Ollama installation, startup, model download)
-./setup-ollama.sh
+./deployment/setup-ollama.sh
 
 # Start LifeBuddy
-docker compose up --build
+cd deployment && docker compose up --build
 
 # Open in browser - http://localhost:8501
 ```
@@ -27,7 +27,7 @@ docker compose up --build
 
 2. **Start LifeBuddy:**
    ```bash
-   docker compose up --build
+   cd deployment && docker compose up --build
    ```
 
 3. **Open in browser:**
@@ -61,8 +61,8 @@ The container automatically looks for Apple Health exports in your Downloads fol
 
 If automatic detection doesn't work:
 
-1. Create the data directory: `mkdir -p data/raw/apple_health_export`
-2. Copy your export.zip: `cp ~/Downloads/export.zip data/raw/apple_health_export/`
+1. Create the data directory: `mkdir -p ../data/raw/apple_health_export`
+2. Copy your export.zip: `cp ~/Downloads/export.zip ../data/raw/apple_health_export/`
 3. Restart the container: `docker-compose restart`
 
 ## 🔧 Configuration
@@ -108,10 +108,10 @@ Container resource limits (reduced since no Ollama):
 
 The container mounts the following directories:
 
-- `./data` → `/app/data` - Database and processed health data
+- `../data` → `/app/data` - Database and processed health data
 - `~/Downloads` → `/host/Downloads` - Read-only access for auto-detection
 
-Your health database persists between container restarts in the `./data` directory.
+Your health database persists between container restarts in the `../data` directory.
 
 ## 🔍 Troubleshooting
 
@@ -141,7 +141,7 @@ docker-compose up
 
 ```bash
 # Check if export file exists
-ls -la data/raw/apple_health_export/
+ls -la ../data/raw/apple_health_export/
 
 # Check processing logs
 docker-compose logs | grep "Processing"

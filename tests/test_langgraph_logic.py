@@ -228,7 +228,7 @@ def main():
     else:
         print("\n⚠️ Some tests failed. Check the errors above.")
         print("   • Ensure all dependencies are installed: poetry install")
-        print("   • Make sure Ollama is running: poetry run python setup_ollama.py")
+        print("   • Make sure Ollama is running: poetry run python deployment/setup_ollama.py")
         print("   • Verify health database exists: python app/ingestion/apple_health.py")
     
     return all_passed

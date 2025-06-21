@@ -1,13 +1,15 @@
 services:
   lifebuddy:
-    build: .
+    build: 
+      context: ..
+      dockerfile: deployment/Dockerfile
     container_name: lifebuddy-app
     ports:
       - "8000:8000"   # FastAPI backend
       - "8501:8501"   # Streamlit frontend
     volumes:
       # Mount data directory for persistence
-      - ./data:/app/data
+      - ../data:/app/data
       # Mount Downloads folder for automatic Apple Health export detection
       - ~/Downloads:/host/Downloads:ro  # Read-only access to Downloads
     environment:

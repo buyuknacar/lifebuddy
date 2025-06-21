@@ -26,16 +26,16 @@ ENV PIP_RETRIES=5
 ENV PIP_TIMEOUT=60
 ENV PIP_DEFAULT_TIMEOUT=60
 
-# Copy poetry files
-COPY pyproject.toml poetry.lock ./
+# Copy poetry files from parent directory
+COPY ../pyproject.toml ../poetry.lock ./
 
 # Configure poetry and install dependencies (skip installing current project)
 RUN poetry config virtualenvs.create false \
     && poetry install --only=main --no-root
 
-# Copy application code
-COPY app/ ./app/
-COPY docker-entrypoint.sh ./
+# Copy application code from parent directory
+COPY ../app/ ./app/
+COPY deployment/docker-entrypoint.sh ./
 
 # Make entrypoint script executable
 RUN chmod +x docker-entrypoint.sh

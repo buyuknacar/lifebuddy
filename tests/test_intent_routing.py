@@ -120,7 +120,7 @@ def main():
         print(f"\n💥 Test failed: {e}")
         if "Connection refused" in str(e):
             print("\n🔧 Ollama is not running. Run automatic setup:")
-            print("  poetry run python setup_ollama.py")
+            print("  poetry run python deployment/setup_ollama.py")
             print("\nThen try the test again:")
 
 
