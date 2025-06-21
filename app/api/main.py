@@ -15,6 +15,7 @@ from pydantic import BaseModel, Field
 
 from app.core.health_data_service import HealthDataService
 from app.agents.health_graph import HealthAgentGraph
+from app.core.llm_provider import LLMProvider
 
 
 # Pydantic models for API requests/responses
@@ -269,10 +270,44 @@ async def chat_message(
     """Send a message to the health agent."""
     try:
         session_id = chat_request.session_id or "default"
-        response = agent.chat(
-            message=chat_request.message,
-            session_id=session_id
-        )
+        
+        # Handle dynamic provider switching
+        if chat_request.provider:
+            # Create a new agent instance with the requested provider
+            import os
+            
+            # Temporarily override the environment variable
+            original_provider = os.getenv("LLM_PROVIDER")
+            os.environ["LLM_PROVIDER"] = chat_request.provider
+            
+            try:
+                # Create new LLM provider and agent with the requested provider
+                dynamic_llm_provider = LLMProvider()
+                dynamic_llm = dynamic_llm_provider.get_llm()
+                
+                # Create a new agent instance with the dynamic LLM
+                from app.agents.health_graph import HealthAgentGraph
+                dynamic_agent = HealthAgentGraph()
+                dynamic_agent.update_llm(dynamic_llm)  # Use the update method
+                
+                # Use the dynamic agent for this request
+                response = dynamic_agent.chat(
+                    message=chat_request.message,
+                    session_id=session_id
+                )
+                
+            finally:
+                # Restore original provider
+                if original_provider:
+                    os.environ["LLM_PROVIDER"] = original_provider
+                else:
+                    os.environ.pop("LLM_PROVIDER", None)
+        else:
+            # Use default agent (Ollama from Docker environment)
+            response = agent.chat(
+                message=chat_request.message,
+                session_id=session_id
+            )
         
         return ChatResponse(
             response=response,
@@ -317,6 +352,7 @@ async def websocket_endpoint(websocket: WebSocket):
             
             user_message = message_data.get("message", "")
             session_id = message_data.get("session_id", session_id)
+            provider = message_data.get("provider")  # Add provider support
             
             if not user_message:
                 await manager.send_personal_message(
@@ -327,8 +363,31 @@ async def websocket_endpoint(websocket: WebSocket):
             
             # Process with health agent
             try:
-                agent = get_health_agent()
-                response = agent.chat(user_message, session_id)
+                # Handle dynamic provider switching (same logic as HTTP endpoint)
+                if provider:
+                    import os
+                    original_provider = os.getenv("LLM_PROVIDER")
+                    os.environ["LLM_PROVIDER"] = provider
+                    
+                    try:
+                        dynamic_llm_provider = LLMProvider()
+                        dynamic_llm = dynamic_llm_provider.get_llm()
+                        
+                        from app.agents.health_graph import HealthAgentGraph
+                        dynamic_agent = HealthAgentGraph()
+                        dynamic_agent.update_llm(dynamic_llm)
+                        
+                        response = dynamic_agent.chat(user_message, session_id)
+                        
+                    finally:
+                        if original_provider:
+                            os.environ["LLM_PROVIDER"] = original_provider
+                        else:
+                            os.environ.pop("LLM_PROVIDER", None)
+                else:
+                    # Use default agent
+                    agent = get_health_agent()
+                    response = agent.chat(user_message, session_id)
                 
                 # Send response back to client
                 response_data = {

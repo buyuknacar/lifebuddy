@@ -40,23 +40,35 @@ class HealthAgentGraph:
     """Main LangGraph-based health agent orchestrator."""
     
     def __init__(self):
+        """Initialize the health agent graph."""
+        # Initialize LLM provider
         self.llm_provider = LLMProvider()
         self.llm = self.llm_provider.get_llm()
+        
+        # Initialize other services
         self.health_service = HealthDataService()
         self.intent_classifier = IntentClassifier()
         
-        # Initialize tools for different health domains (from existing system)
+        # Initialize health tools with LLM
+        self._init_tools()
+        
+        # Build the graph
+        self.compiled_graph = self._build_graph().compile()
+    
+    def _init_tools(self):
+        """Initialize health tools with current LLM."""
+        # Use the existing tool functions that are already imported
         self.fitness_tools = get_fitness_tools()
         self.nutrition_tools = get_nutrition_tools()
         self.wellness_tools = get_wellness_tools()
         self.general_tools = get_general_tools()
-        
-        # Build the graph
-        self.graph = self._build_graph()
-        
-        # Initialize graph without checkpointer for now (can be added later)
-        # TODO: Fix checkpointer initialization for session persistence
-        self.compiled_graph = self.graph.compile()
+    
+    def update_llm(self, new_llm):
+        """Update the LLM and rebuild tools and graph."""
+        self.llm = new_llm
+        self._init_tools()
+        # Note: We don't rebuild the compiled graph as it's expensive
+        # The tools will use the new LLM instance
     
     def _build_graph(self) -> StateGraph:
         """Build the main health agent graph."""

@@ -73,14 +73,34 @@ If automatic detection doesn't work:
 
 ### Environment Variables
 
-You can customize the setup by modifying `docker-compose.yml`:
+The Docker container uses several environment variables for configuration:
+
+- `LLM_PROVIDER=ollama` - Default AI provider (Ollama runs locally in container)
+- `OLLAMA_BASE_URL=http://localhost:11434` - Ollama server URL
+- `OLLAMA_MODEL=llama3.2:3b` - Default Ollama model
+- `DATABASE_PATH=/app/data/lifebuddy.db` - SQLite database location
+
+### Provider Selection
+
+**Important**: The `LLM_PROVIDER=ollama` environment variable sets the **default** provider, but users can dynamically switch providers through the Streamlit interface:
+
+- **Default (Ollama)**: Uses the local Ollama server running in the container
+- **OpenAI/Anthropic/Google/Azure**: Requires API keys as environment variables
+
+To use external providers, add their API keys to your `docker-compose.yml`:
 
 ```yaml
-environment:
-  - LLM_PROVIDER=ollama          # AI provider (ollama, openai, anthropic, etc.)
-  - OLLAMA_MODEL=llama3.2:3b     # Ollama model to use
-  - DATABASE_PATH=/app/data/lifebuddy.db  # Database location
+services:
+  lifebuddy:
+    # ... existing config ...
+    environment:
+      - OPENAI_API_KEY=your_openai_key_here
+      - ANTHROPIC_API_KEY=your_anthropic_key_here
+      - GOOGLE_API_KEY=your_google_key_here
+      # etc.
 ```
+
+The provider selection in the Streamlit UI will override the Docker default for each conversation.
 
 ### Resource Limits
 
