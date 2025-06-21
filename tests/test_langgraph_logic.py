@@ -7,7 +7,6 @@ Following phased development approach.
 
 import os
 import sys
-from datetime import datetime
 
 # Add the app directory to the Python path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'app'))
@@ -20,7 +19,7 @@ def test_langgraph_basic_functionality():
     
     try:
         # Import may fail if LangGraph dependencies aren't properly installed
-        from agents.health_graph import health_graph
+        from app.agents.health_graph import health_graph
         
         # Test fitness-focused queries only
         test_queries = [
@@ -64,7 +63,7 @@ def test_router_compatibility():
     print("=" * 50)
     
     try:
-        from agents.health_graph import health_graph
+        from app.agents.health_graph import health_graph
         
         # Test fitness-focused query
         test_query = "What's my step count for the last 3 days?"
@@ -99,7 +98,7 @@ def test_session_persistence():
     print("=" * 50)
     
     try:
-        from agents.health_graph import health_graph
+        from app.agents.health_graph import health_graph
         
         # Create a session and have a multi-turn fitness conversation
         session_id = "test_fitness_session_123"
@@ -131,7 +130,7 @@ def test_timezone_awareness():
     print("=" * 50)
     
     try:
-        from agents.health_graph import health_graph
+        from app.agents.health_graph import health_graph
         
         # Test timezone info query
         response = health_graph.chat("What timezone am I in?")
@@ -156,7 +155,7 @@ def test_fitness_tools():
     print("=" * 50)
     
     try:
-        from agents.health_graph import health_graph
+        from app.agents.health_graph import health_graph
         
         # Test fitness-specific queries
         fitness_queries = [
