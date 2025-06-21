@@ -29,15 +29,15 @@ services:
       timeout: 10s
       retries: 3
       start_period: 30s
-    # Resource limits (reduced since no Ollama)
+    # Resource limits (optimized for 8GB M1 Mac)
     deploy:
       resources:
         limits:
-          memory: 2G
-          cpus: '1.0'
+          memory: 1.5G    # Reduced from 2G to avoid memory pressure
+          cpus: '1.5'     # Increased to utilize M1 performance cores
         reservations:
-          memory: 1G
-          cpus: '0.5'
+          memory: 512M    # Reduced guaranteed memory
+          cpus: '0.5'     # Keep guaranteed CPU the same
     # Enable host networking for Ollama connection
     extra_hosts:
       - "host.docker.internal:host-gateway" 
