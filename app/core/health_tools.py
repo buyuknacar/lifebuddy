@@ -4,13 +4,31 @@ These tools allow agents to query real health data from the SQLite database.
 Now includes timezone-aware functionality.
 """
 import json
+import re
 from typing import Dict, Any
 from langchain_core.tools import Tool
 from app.core.health_data_service import health_service
 
 
-def get_timezone_info_tool() -> str:
-    """Get user's timezone information."""
+def _parse_integer_from_input(input_str: str, default: int = 7) -> int:
+    """
+    Extract integer from potentially quoted or mixed input using regex.
+    Handles cases like: '7', "7", 7, "'7'", "7", etc.
+    """
+    if not input_str:
+        return default
+    
+    # Use regex to find the first integer in the string
+    match = re.search(r'\d+', str(input_str))
+    if match:
+        return int(match.group())
+    
+    # Fallback to default if no integer found
+    return default
+
+
+def get_timezone_info_tool(unused_input: str = "") -> str:
+    """Get user's timezone information. Ignores any input parameter."""
     try:
         result = health_service.get_user_timezone_info()
         return json.dumps(result, indent=2)
@@ -21,7 +39,7 @@ def get_timezone_info_tool() -> str:
 def get_steps_tool(days_back: str = "7") -> str:
     """Get daily step counts for the specified number of days back."""
     try:
-        days = int(days_back)
+        days = _parse_integer_from_input(days_back, 7)
         result = health_service.get_daily_steps(days)
         return json.dumps(result, indent=2)
     except Exception as e:
@@ -31,7 +49,7 @@ def get_steps_tool(days_back: str = "7") -> str:
 def get_heart_rate_tool(days_back: str = "7") -> str:
     """Get heart rate summary for the specified number of days back."""
     try:
-        days = int(days_back)
+        days = _parse_integer_from_input(days_back, 7)
         result = health_service.get_heart_rate_summary(days)
         return json.dumps(result, indent=2)
     except Exception as e:
@@ -41,7 +59,7 @@ def get_heart_rate_tool(days_back: str = "7") -> str:
 def get_workouts_tool(limit: str = "10") -> str:
     """Get recent workout activities."""
     try:
-        workout_limit = int(limit)
+        workout_limit = _parse_integer_from_input(limit, 10)
         result = health_service.get_recent_workouts(workout_limit)
         return json.dumps(result, indent=2)
     except Exception as e:
@@ -51,7 +69,7 @@ def get_workouts_tool(limit: str = "10") -> str:
 def get_weight_tool(days_back: str = "30") -> str:
     """Get weight tracking progress for the specified number of days back."""
     try:
-        days = int(days_back)
+        days = _parse_integer_from_input(days_back, 30)
         result = health_service.get_weight_progress(days)
         return json.dumps(result, indent=2)
     except Exception as e:
@@ -61,7 +79,7 @@ def get_weight_tool(days_back: str = "30") -> str:
 def get_activity_summary_tool(days_back: str = "7") -> str:
     """Get comprehensive activity summary for the specified number of days back."""
     try:
-        days = int(days_back)
+        days = _parse_integer_from_input(days_back, 7)
         result = health_service.get_activity_summary(days)
         return json.dumps(result, indent=2)
     except Exception as e:
@@ -71,12 +89,15 @@ def get_activity_summary_tool(days_back: str = "7") -> str:
 def search_health_data_tool(metric_and_days: str) -> str:
     """Search for specific health data. Format: 'metric_type,days_back' (e.g., 'steps,7' or 'heart_rate,14')."""
     try:
-        parts = metric_and_days.split(',')
-        if len(parts) != 2:
+        if not metric_and_days:
             return "Error: Please provide metric type and days in format 'metric_type,days_back'"
         
+        parts = metric_and_days.split(',')
+        if len(parts) != 2:
+            return "Error: Please provide metric type and days in format 'metric_type,days_back' (e.g., 'steps,7')"
+        
         metric_type = parts[0].strip()
-        days_back = int(parts[1].strip())
+        days_back = _parse_integer_from_input(parts[1].strip(), 7)
         
         result = health_service.search_health_data(metric_type, days_back)
         return json.dumps(result, indent=2)
@@ -84,41 +105,41 @@ def search_health_data_tool(metric_and_days: str) -> str:
         return f"Error searching health data: {str(e)}"
 
 
-# Create LangChain Tool objects
+# Create LangChain Tool objects with clear descriptions
 health_tools = [
     Tool(
         name="get_user_timezone",
-        description="Get user's timezone information to understand the context of health data timestamps",
+        description="Get user's timezone information. No input needed - just use empty string or None.",
         func=get_timezone_info_tool
     ),
     Tool(
         name="get_daily_steps",
-        description="Get daily step counts. Input: number of days back (default: 7)",
+        description="Get daily step counts. Input should be just the number of days (e.g., 7 not days_back=7)",
         func=get_steps_tool
     ),
     Tool(
         name="get_heart_rate_summary",
-        description="Get heart rate summary including average, min, max. Input: number of days back (default: 7)",
+        description="Get heart rate summary. Input should be just the number of days (e.g., 7)",
         func=get_heart_rate_tool
     ),
     Tool(
         name="get_recent_workouts",
-        description="Get recent workout activities with details. Input: number of workouts to show (default: 10)",
+        description="Get recent workout activities. Input should be just the number of workouts (e.g., 10)",
         func=get_workouts_tool
     ),
     Tool(
         name="get_weight_progress",
-        description="Get weight tracking progress and trends. Input: number of days back (default: 30)",
+        description="Get weight tracking progress. Input should be just the number of days (e.g., 30)",
         func=get_weight_tool
     ),
     Tool(
         name="get_activity_summary",
-        description="Get comprehensive activity summary including steps, energy, exercise time. Input: number of days back (default: 7)",
+        description="Get comprehensive activity summary. Input should be just the number of days (e.g., 7)",
         func=get_activity_summary_tool
     ),
     Tool(
         name="search_health_data",
-        description="Search for specific health metrics. Input: 'metric_type,days_back' where metric_type is one of: steps, heart_rate, workouts, weight, activity",
+        description="Search for specific health metrics. Input format: 'metric_type,days_back' (e.g., 'steps,7')",
         func=search_health_data_tool
     )
 ]

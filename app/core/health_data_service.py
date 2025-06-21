@@ -140,8 +140,8 @@ class HealthDataService:
     def get_recent_workouts(self, limit: int = 10) -> Dict[str, Any]:
         """Get recent workout activities."""
         query = """
-        SELECT workout_name, start_date, duration_minutes, 
-               total_energy_burned, total_distance
+        SELECT workout_type, start_date, duration_minutes, 
+               total_energy_burned, total_distance_km
         FROM workouts 
         ORDER BY start_date DESC 
         LIMIT ?
@@ -155,11 +155,13 @@ class HealthDataService:
         total_workouts = len(results)
         total_energy = sum(row['total_energy_burned'] or 0 for row in results)
         total_duration = sum(row['duration_minutes'] or 0 for row in results)
+        total_distance = sum(row['total_distance_km'] or 0 for row in results)
         
         return {
             "total_workouts": total_workouts,
             "total_energy_burned": round(total_energy),
             "total_duration_minutes": round(total_duration),
+            "total_distance_km": round(total_distance, 2),
             "recent_workouts": results
         }
     
