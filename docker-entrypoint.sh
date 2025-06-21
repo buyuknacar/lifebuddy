@@ -62,23 +62,25 @@ check_apple_health_export() {
     
     if [ -f "/host/Downloads/export.xml" ]; then
         echo "✅ Found Apple Health export in Downloads"
+        echo "📊 Processing Apple Health data (full database overwrite)..."
         
-        if [ ! -f "/app/data/lifebuddy.db" ] || [ "/host/Downloads/export.xml" -nt "/app/data/lifebuddy.db" ]; then
-            echo "📊 Processing Apple Health data..."
-            mkdir -p /app/data/raw/apple_health_export
-            cp /host/Downloads/export.xml /app/data/raw/apple_health_export/
-            
-            # Process the data
-            cd /app
-            python -c "
+        # Always do full reprocess when export file exists
+        mkdir -p /app/data/raw/apple_health_export
+        cp /host/Downloads/export.xml /app/data/raw/apple_health_export/
+        
+        # Process the data (this will drop and recreate all tables)
+        cd /app
+        python -c "
 from app.ingestion.apple_health import AppleHealthParser
-parser = AppleHealthParser()
+parser = AppleHealthParser('/app/data/raw/apple_health_export/export.xml')
 parser.parse_and_store('/app/data/raw/apple_health_export/export.xml')
-print('✅ Apple Health data processed successfully')
+print('✅ Apple Health data processed successfully (full overwrite)')
 " || echo "⚠️  Error processing Apple Health data"
-        else
-            echo "ℹ️  Apple Health data is up to date"
-        fi
+        
+        # Optional: Remove the export file after processing to avoid reprocessing
+        # rm /host/Downloads/export.xml
+        echo "💡 Tip: Remove ~/Downloads/export.xml to avoid reprocessing on next startup"
+        
     else
         echo "ℹ️  No Apple Health export found in ~/Downloads"
         echo "   To add your data, export from iPhone Health app and save as ~/Downloads/export.xml"
