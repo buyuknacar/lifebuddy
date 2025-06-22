@@ -278,9 +278,10 @@ Keep responses concise and personable."""),
         return state
     
     def _execute_specialized_analysis(self, state: HealthSessionState, domain: str, tools: List, system_prompt_template: str) -> HealthSessionState:
-        """Execute specialized analysis using ReAct agent (migrated from base_agent.py)."""
-        from langchain.agents import create_react_agent, AgentExecutor
-        from langchain_core.prompts import PromptTemplate
+        """Execute specialized analysis using simple single-step tool prompting for small models."""
+        from langchain_core.prompts import ChatPromptTemplate
+        import re
+        import json
         
         # Format system prompt with timezone info
         system_prompt = system_prompt_template.format(
@@ -288,81 +289,149 @@ Keep responses concise and personable."""),
             timezone_offset=state['user_timezone']['offset']
         )
         
-        # Create ReAct agent (same pattern as base_agent.py)
-        react_prompt = PromptTemplate.from_template("""
-{system_prompt}
-
-TOOLS:
-------
-You have access to the following tools:
-
-{tools}
-
-Use the following format:
-
-Question: the input question you must answer
-Thought: you should always think about what to do
-Action: the action to take, should be one of [{tool_names}]
-Action Input: the input to the action
-Observation: the result of the action
-... (this Thought/Action/Action Input/Observation can repeat N times)
-Thought: I now know the final answer
-Final Answer: the final answer to the original input question
-
-IMPORTANT: Answer ONLY the specific question asked. Do not ask follow-up questions or provide additional analysis unless specifically requested.
-
-Begin!
-
-Question: {input}
-Thought: {agent_scratchpad}
-""")
+        latest_message = state["messages"][-1]
+        user_query = str(latest_message.content)
         
-        # Set up agent with domain-specific tools
-        agent = create_react_agent(self.llm, tools, react_prompt.partial(system_prompt=system_prompt))
-        agent_executor = AgentExecutor(
-            agent=agent, 
-            tools=tools, 
-            verbose=True, 
-            max_iterations=3,
-            handle_parsing_errors=True,
-            return_intermediate_steps=True  # This captures tool calls for thinking chain
-        )
+        # Create available tools list for the prompt
+        tool_descriptions = []
+        for tool in tools:
+            tool_descriptions.append(f"- {tool.name}: {tool.description}")
+        tools_text = "\n".join(tool_descriptions)
         
-        # Execute analysis
+        # Single-step tool selection prompt - much simpler than ReAct
+        tool_selection_prompt = ChatPromptTemplate.from_messages([
+            ("system", f"""{system_prompt}
+
+Available tools:
+{tools_text}
+
+Your task: Identify which tool to use and what input to provide.
+
+Respond with EXACTLY this format:
+TOOL: [tool_name]
+INPUT: [input_value]
+
+Examples:
+User: "show my heart rate"
+TOOL: get_heart_rate_summary  
+INPUT: 7
+
+User: "steps last 2 weeks"
+TOOL: get_daily_steps
+INPUT: 14
+
+User: "my sleep patterns"  
+TOOL: get_sleep_data
+INPUT: 7
+
+Be precise with the format. Use only tool names from the list above."""),
+            ("human", "{query}")
+        ])
+        
         thinking_chain = []
         try:
-            latest_message = state["messages"][-1]
-            result = agent_executor.invoke({
-                "input": str(latest_message.content),
-                "system_prompt": system_prompt
-            })
+            # Step 1: Get tool selection from LLM
+            chain = tool_selection_prompt | self.llm
+            result = chain.invoke({"query": user_query})
+            response_text = str(result.content) if hasattr(result, 'content') else str(result)
             
-            # Capture thinking chain from intermediate steps
-            intermediate_steps = result.get("intermediate_steps", [])
-            for step in intermediate_steps:
-                if len(step) >= 2:
-                    action, observation = step[0], step[1]
-                    # Extract clean tool name (remove parameters if present)
-                    tool_name = action.tool if hasattr(action, 'tool') else str(action).split('(')[0]
+            # Debug: Log what LLM generated
+            logger.info(f"LLM tool selection output: {response_text}")
+            
+            # Step 2: Parse the simple format
+            tool_match = re.search(r'TOOL:\s*(\w+)', response_text)
+            input_match = re.search(r'INPUT:\s*(\w+)', response_text)
+            
+            if tool_match and input_match:
+                tool_name = tool_match.group(1)
+                tool_input = input_match.group(1)
+                
+                # Step 3: Find and execute the tool
+                selected_tool = None
+                for tool in tools:
+                    if tool.name == tool_name:
+                        selected_tool = tool
+                        break
+                
+                if selected_tool:
+                    # Execute the tool directly
+                    tool_result = selected_tool.func(tool_input)
+                    
+                    # Record thinking chain
                     thinking_chain.append({
                         "tool_name": tool_name,
-                        "tool_input": str(action.tool_input) if hasattr(action, 'tool_input') else "",
-                        "tool_output": str(observation)
+                        "tool_input": tool_input, 
+                        "tool_output": tool_result
                     })
-            
-            state["current_analysis"] = {
-                "domain": domain,
-                "result": result["output"],
-                "tools_used": [tool.name for tool in tools],
-                "thinking_chain": thinking_chain
-            }
-            state["tools_used"] = [tool.name for tool in tools]
-            
+                    
+                    # Step 4: Format response using LLM
+                    # Escape any curly braces in tool_result to avoid template variable issues
+                    escaped_tool_result = tool_result.replace("{", "{{").replace("}", "}}")
+                    
+                    response_prompt = ChatPromptTemplate.from_messages([
+                        ("system", f"""{system_prompt}
+
+The user asked: {user_query}
+
+I retrieved this health data:
+{escaped_tool_result}
+
+Please provide a helpful, natural response to the user based on this data. Be friendly and conversational."""),
+                        ("human", "Please analyze and explain this health data.")
+                    ])
+                    
+                    response_chain = response_prompt | self.llm
+                    final_response = response_chain.invoke({})
+                    final_text = str(final_response.content) if hasattr(final_response, 'content') else str(final_response)
+                    
+                    state["current_analysis"] = {
+                        "domain": domain,
+                        "result": final_text,
+                        "tools_used": [tool_name],
+                        "thinking_chain": thinking_chain
+                    }
+                    state["tools_used"] = [tool_name]
+                    
+                else:
+                    # Tool not found
+                    state["current_analysis"] = {
+                        "domain": domain,
+                        "result": f"I tried to use '{tool_name}' but it's not available. Please try asking about steps, heart rate, workouts, or sleep data.",
+                        "tools_used": [],
+                        "thinking_chain": []
+                    }
+                    state["tools_used"] = []
+            else:
+                # Parsing failed - provide helpful guidance
+                state["current_analysis"] = {
+                    "domain": domain,
+                    "result": f"I'm having trouble understanding your {domain} question. Try asking something like 'show my heart rate' or 'get my steps for last week'.",
+                    "tools_used": [],
+                    "thinking_chain": []
+                }
+                state["tools_used"] = []
+        
         except Exception as e:
             logger.warning(f"{domain.title()} analysis error: {e}")
+            
+            # Fallback: Provide helpful response even when tools fail
+            user_query_lower = user_query.lower()
+            
+            fallback_response = f"I'm having trouble accessing your {domain} data right now. "
+            
+            # Add domain-specific guidance
+            if domain == "fitness" and any(word in user_query_lower for word in ["heart", "rate", "steps", "workout"]):
+                fallback_response += "I can help you with heart rate analysis, step tracking, and workout insights when my data tools are working. Try asking me to 'get my heart rate summary' or 'show my recent workouts'."
+            elif domain == "nutrition" and any(word in user_query_lower for word in ["weight", "calories", "diet"]):
+                fallback_response += "I can help you with weight tracking and nutrition analysis when my data tools are working. Try asking me to 'show my weight progress' or 'analyze my calorie burn'."
+            elif domain == "wellness" and any(word in user_query_lower for word in ["sleep", "stress", "mood"]):
+                fallback_response += "I can help you with sleep analysis and wellness insights when my data tools are working. Try asking me to 'analyze my sleep data' or 'show my stress indicators'."
+            else:
+                fallback_response += "Please try rephrasing your question or ask me about a specific health metric like steps, heart rate, or sleep."
+            
             state["current_analysis"] = {
                 "domain": domain,
-                "result": f"I encountered an error analyzing your {domain} data: {str(e)}",
+                "result": fallback_response,
                 "tools_used": [],
                 "thinking_chain": []
             }

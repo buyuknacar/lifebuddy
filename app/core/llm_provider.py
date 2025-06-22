@@ -34,10 +34,14 @@ class LLMProvider:
         model = os.getenv("OLLAMA_MODEL", "llama3.2:3b")
         base_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
         
+        # Optimize parameters for tool use with small models
         return ChatOllama(
             model=model,
             base_url=base_url,
-            temperature=0.1
+            temperature=0.0,  # Lower temperature for more consistent tool calls
+            top_p=0.9,        # Reduce randomness 
+            repeat_penalty=1.1,  # Prevent repetition
+            num_predict=512  # Limit response length
         )
     
     def _get_openai_llm(self) -> BaseChatModel:
