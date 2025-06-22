@@ -82,81 +82,6 @@ ensure_model() {
     fi
 }
 
-# Function to create systemd service (Linux) or launchd service (macOS)
-create_auto_start_service() {
-    echo "🔧 Setting up Ollama auto-start..."
-    
-    if [[ "$OSTYPE" == "darwin"* ]]; then
-        # macOS - create launchd plist
-        PLIST_PATH="$HOME/Library/LaunchAgents/com.ollama.server.plist"
-        
-        cat > "$PLIST_PATH" << EOF
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-    <key>Label</key>
-    <string>com.ollama.server</string>
-    <key>ProgramArguments</key>
-    <array>
-        <string>$(which ollama)</string>
-        <string>serve</string>
-    </array>
-    <key>RunAtLoad</key>
-    <true/>
-    <key>KeepAlive</key>
-    <true/>
-    <key>StandardOutPath</key>
-    <string>$HOME/.ollama/logs/server.log</string>
-    <key>StandardErrorPath</key>
-    <string>$HOME/.ollama/logs/server.error.log</string>
-</dict>
-</plist>
-EOF
-        
-        # Create log directory
-        mkdir -p "$HOME/.ollama/logs"
-        
-        # Load the service
-        launchctl load "$PLIST_PATH" 2>/dev/null || true
-        
-        echo "✅ Ollama auto-start service created (macOS)"
-        echo "   Ollama will start automatically on login"
-        
-    elif [[ "$OSTYPE" == "linux-gnu"* ]]; then
-        # Linux - create systemd user service
-        SERVICE_PATH="$HOME/.config/systemd/user/ollama.service"
-        mkdir -p "$(dirname "$SERVICE_PATH")"
-        
-        cat > "$SERVICE_PATH" << EOF
-[Unit]
-Description=Ollama Server
-After=network.target
-
-[Service]
-Type=simple
-ExecStart=$(which ollama) serve
-Restart=always
-RestartSec=3
-Environment=HOME=$HOME
-
-[Install]
-WantedBy=default.target
-EOF
-        
-        # Reload systemd and enable service
-        systemctl --user daemon-reload
-        systemctl --user enable ollama.service
-        systemctl --user start ollama.service
-        
-        echo "✅ Ollama auto-start service created (Linux)"
-        echo "   Ollama will start automatically on login"
-    else
-        echo "⚠️  Auto-start service not supported on this OS"
-        echo "   You'll need to run 'ollama serve' manually"
-    fi
-}
-
 # Main setup function
 main() {
     echo "🔍 Checking Ollama setup..."
@@ -185,21 +110,18 @@ main() {
         echo "   You can download it later with: ollama pull llama3.2:3b"
     fi
     
-    # Step 4: Offer to set up auto-start
-    echo ""
-    read -p "🤖 Would you like Ollama to start automatically on login? (y/N): " -n 1 -r
-    echo
-    if [[ $REPLY =~ ^[Yy]$ ]]; then
-        create_auto_start_service
-    else
-        echo "ℹ️  Skipping auto-start setup"
-        echo "   Remember to run 'ollama serve' before using LifeBuddy"
-    fi
-    
     echo ""
     echo "🎉 Ollama setup complete!"
     echo "   Server: http://localhost:11434"
-    echo "   Status: $(check_ollama_running && echo "Running ✅" || echo "Stopped ❌")"
+    echo "   Status: $(check_ollama_running && echo "✅ Ollama is running" || echo "❌ Ollama not running")"
+    
+    # Check final status
+    if check_ollama_running; then
+        echo "Running ✅"
+    else
+        echo "Not Running ❌"
+    fi
+    
     echo ""
     echo "🚀 You can now run: docker compose up --build"
 }

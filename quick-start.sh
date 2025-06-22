@@ -1,12 +1,11 @@
 #!/bin/bash
 
 # LifeBuddy Quick Start Script
-# This script handles the complete setup and startup process
+# Simple universal timezone setup using UTC offsets
 
-set -e  # Exit on error
+set -e
 
-echo "🌟 LifeBuddy Quick Start"
-echo "======================="
+echo "🚀 Starting LifeBuddy..."
 
 # Check if we're in the right directory
 if [ ! -f "pyproject.toml" ]; then
@@ -14,7 +13,27 @@ if [ ! -f "pyproject.toml" ]; then
     exit 1
 fi
 
-# Step 1: Setup Ollama
+# Check if TZ is already set
+if [ -z "$TZ" ]; then
+    echo ""
+    echo "🌍 Please set your timezone as UTC offset:"
+    echo "   Examples:"
+    echo "   • UTC-8 (Pacific Time)"
+    echo "   • UTC-5 (Eastern Time)" 
+    echo "   • UTC+0 (London/GMT)"
+    echo "   • UTC+1 (Berlin/Paris)"
+    echo "   • UTC+5:30 (India)"
+    echo "   • UTC+9 (Japan/Korea)"
+    echo ""
+    echo "💡 Usage: TZ=UTC-8 ./quick-start.sh"
+    echo "💡 Or set permanently: export TZ=UTC-8"
+    echo ""
+    exit 1
+fi
+
+echo "🌍 Using timezone: $TZ"
+
+# Setup Ollama
 echo "📦 Setting up Ollama..."
 if [ -f "deployment/setup-ollama.sh" ]; then
     chmod +x deployment/setup-ollama.sh
@@ -24,7 +43,7 @@ else
     exit 1
 fi
 
-# Step 2: Start Docker containers
+# Start Docker containers
 echo "🐳 Starting LifeBuddy containers..."
 cd deployment
 docker compose up --build

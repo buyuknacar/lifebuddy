@@ -5,9 +5,10 @@ Now includes timezone-aware operations.
 """
 import os
 import sqlite3
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date, timezone
 from typing import Dict, List, Optional, Any
 import pandas as pd
+import re
 
 from app.core.logger import get_logger
 
@@ -40,7 +41,39 @@ class HealthDataService:
                 raise ValueError(f"Missing database tables: {missing_tables}")
     
     def _get_user_timezone(self) -> Dict[str, str]:
-        """Get user's timezone information from the database."""
+        """Get user's timezone information, prioritizing current TZ environment variable."""
+        # First, check for current TZ environment variable (takes priority)
+        tz_env = os.environ.get('TZ', '').strip()
+        
+        if tz_env and tz_env.startswith('UTC'):
+            # Parse UTC offset format (UTC-8, UTC+5:30, etc.)
+            match = re.match(r'UTC([+-])(\d{1,2})(?::(\d{2}))?', tz_env)
+            if match:
+                sign = match.group(1)
+                hours = int(match.group(2))
+                minutes = int(match.group(3)) if match.group(3) else 0
+                
+                # Convert to timezone offset
+                total_minutes = hours * 60 + minutes
+                if sign == '-':
+                    total_minutes = -total_minutes
+                
+                # Format offset string
+                offset_hours = total_minutes // 60
+                offset_mins = abs(total_minutes % 60)
+                if offset_mins > 0:
+                    offset_str = f"{offset_hours:+03d}{offset_mins:02d}"
+                else:
+                    offset_str = f"{offset_hours:+03d}00"
+                
+                logger.info(f"Using current TZ environment variable: {tz_env} ({offset_str})")
+                
+                return {
+                    'name': tz_env,
+                    'offset': offset_str
+                }
+        
+        # Fallback to database timezone (from when data was parsed)
         try:
             with sqlite3.connect(self.db_path) as conn:
                 cursor = conn.cursor()
@@ -48,25 +81,24 @@ class HealthDataService:
                 result = cursor.fetchone()
                 
                 if result:
+                    logger.info(f"Using timezone from database: {result[0]} ({result[1]})")
                     return {
                         'name': result[0],
                         'offset': result[1]
                     }
-                else:
-                    # Fallback to system timezone if not found in database
-                    local_dt = datetime.now().astimezone()
-                    return {
-                        'name': str(local_dt.tzinfo),
-                        'offset': local_dt.strftime('%z')
-                    }
         except Exception as e:
-            logger.warning(f"Error getting user timezone: {e}")
-            # Fallback to system timezone
-            local_dt = datetime.now().astimezone()
-            return {
-                'name': str(local_dt.tzinfo),
-                'offset': local_dt.strftime('%z')
-            }
+            logger.warning(f"Error getting timezone from database: {e}")
+        
+        # Final fallback to system timezone
+        local_dt = datetime.now().astimezone()
+        timezone_name = str(local_dt.tzinfo)
+        timezone_offset = local_dt.strftime('%z')
+        
+        logger.warning(f"Using system timezone fallback: {timezone_name} ({timezone_offset})")
+        return {
+            'name': timezone_name,
+            'offset': timezone_offset
+        }
     
     def get_user_timezone_info(self) -> Dict[str, str]:
         """Get user's timezone information for display or calculations."""
@@ -75,6 +107,32 @@ class HealthDataService:
             "timezone_offset": self.user_timezone['offset'],
             "message": f"User is in timezone: {self.user_timezone['name']} ({self.user_timezone['offset']})"
         }
+    
+    def _get_user_current_date(self) -> date:
+        """Get current date in user's timezone for accurate date range calculations."""
+        try:
+            # Try to parse user timezone offset (e.g., "-0800" or "+0530")
+            offset_str = self.user_timezone['offset']
+            
+            # Parse offset string like "+0530" or "-0800"
+            if len(offset_str) == 5 and offset_str[0] in ['+', '-']:
+                sign = 1 if offset_str[0] == '+' else -1
+                hours = int(offset_str[1:3])
+                minutes = int(offset_str[3:5])
+                total_minutes = sign * (hours * 60 + minutes)
+                
+                # Create timezone-aware datetime
+                user_tz = timezone(timedelta(minutes=total_minutes))
+                user_now = datetime.now(user_tz)
+                return user_now.date()
+            else:
+                # Fallback to system date if can't parse offset
+                logger.warning(f"Could not parse timezone offset: {offset_str}, using system date")
+                return datetime.now().date()
+                
+        except Exception as e:
+            logger.warning(f"Error calculating user timezone date: {e}, using system date")
+            return datetime.now().date()
     
     def _execute_query(self, query: str, params: tuple = ()) -> List[Dict]:
         """Execute SQL query and return results as list of dictionaries."""
@@ -86,7 +144,7 @@ class HealthDataService:
     
     def get_daily_steps(self, days_back: int = 7) -> Dict[str, Any]:
         """Get daily step counts for the last N days."""
-        end_date = datetime.now().date()
+        end_date = self._get_user_current_date()
         start_date = end_date - timedelta(days=days_back)
         
         query = """
@@ -114,7 +172,7 @@ class HealthDataService:
     
     def get_heart_rate_summary(self, days_back: int = 7) -> Dict[str, Any]:
         """Get heart rate summary for the last N days."""
-        end_date = datetime.now().date()
+        end_date = self._get_user_current_date()
         start_date = end_date - timedelta(days=days_back)
         
         query = """
@@ -172,7 +230,7 @@ class HealthDataService:
     
     def get_weight_progress(self, days_back: int = 30) -> Dict[str, Any]:
         """Get weight tracking progress."""
-        end_date = datetime.now().date()
+        end_date = self._get_user_current_date()
         start_date = end_date - timedelta(days=days_back)
         
         query = """
@@ -201,7 +259,7 @@ class HealthDataService:
     
     def get_activity_summary(self, days_back: int = 7) -> Dict[str, Any]:
         """Get comprehensive activity summary."""
-        end_date = datetime.now().date()
+        end_date = self._get_user_current_date()
         start_date = end_date - timedelta(days=days_back)
         
         query = """
@@ -240,7 +298,7 @@ class HealthDataService:
     
     def get_sleep_data(self, days_back: int = 7) -> Dict[str, Any]:
         """Get sleep data for the last N days - handles both old iPhone and new Apple Watch formats."""
-        end_date = datetime.now().date()
+        end_date = self._get_user_current_date()
         start_date = end_date - timedelta(days=days_back)
         
         # Get individual sleep records and aggregate by date and type

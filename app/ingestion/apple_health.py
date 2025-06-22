@@ -22,16 +22,58 @@ logger = get_health_logger()
 
 def get_user_timezone():
     """
-    Detect user's timezone using system datetime.
-    This is the primary method for timezone detection.
+    Get user's timezone from TZ environment variable (UTC offset format).
+    Falls back to system timezone if TZ not set.
     """
+    import os
+    import re
+    
+    # Check for TZ environment variable first (UTC offset format like UTC-8 or UTC+5:30)
+    tz_env = os.environ.get('TZ', '').strip()
+    
+    if tz_env and tz_env.startswith('UTC'):
+        # Parse UTC offset format (UTC-8, UTC+5:30, etc.)
+        match = re.match(r'UTC([+-])(\d{1,2})(?::(\d{2}))?', tz_env)
+        if match:
+            sign = match.group(1)
+            hours = int(match.group(2))
+            minutes = int(match.group(3)) if match.group(3) else 0
+            
+            # Convert to timezone offset
+            total_minutes = hours * 60 + minutes
+            if sign == '-':
+                total_minutes = -total_minutes
+            
+            # Create timezone object
+            tz_offset = timezone(timedelta(minutes=total_minutes))
+            
+            # Format offset string
+            offset_hours = total_minutes // 60
+            offset_mins = abs(total_minutes % 60)
+            if offset_mins > 0:
+                offset_str = f"{offset_hours:+03d}{offset_mins:02d}"
+            else:
+                offset_str = f"{offset_hours:+03d}00"
+            
+            logger.info(f"Using TZ environment variable: {tz_env} ({offset_str})")
+            
+            return {
+                'name': tz_env,
+                'offset': offset_str,
+                'tzinfo': tz_offset
+            }
+    
+    # Fallback to system timezone detection
     local_dt = datetime.now().astimezone()
+    timezone_name = str(local_dt.tzinfo)
+    timezone_offset = local_dt.strftime('%z')
     
-    # Get timezone info
-    timezone_name = str(local_dt.tzinfo)  # e.g., "America/Los_Angeles" or "UTC-07:00"
-    timezone_offset = local_dt.strftime('%z')  # e.g., "-0700"
+    # Warn if running in Docker container without TZ set
+    if os.path.exists('/.dockerenv') and not tz_env:
+        logger.warning("Running in Docker container without TZ environment variable!")
+        logger.warning("Timezone may be incorrect. Set TZ=UTC-8 (or your offset) in docker-compose.yml")
     
-    logger.info(f"Detected user timezone: {timezone_name} ({timezone_offset})")
+    logger.info(f"Detected system timezone: {timezone_name} ({timezone_offset})")
     
     return {
         'name': timezone_name,

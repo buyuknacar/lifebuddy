@@ -52,12 +52,24 @@ cd lifebuddy
 # Install Docker Desktop (if not already installed)
 # Download from: https://www.docker.com/products/docker-desktop/
 
-# One-command setup and start (recommended)
-./quick-start.sh
+# Set your timezone (required for accurate health data)
+# Common timezones:
+# Turkey: UTC+3
+# US West Coast (Pacific): UTC-8 (UTC-7 during daylight saving)
+# US East Coast (Eastern): UTC-5 (UTC-4 during daylight saving)  
+# US Central Time: UTC-6 (UTC-5 during daylight saving)
 
-# Or manual setup:
-# ./deployment/setup-ollama.sh
-# cd deployment && docker compose up --build
+# Examples:
+TZ=UTC+3 ./quick-start.sh     # Turkey
+TZ=UTC-8 ./quick-start.sh     # US West Coast
+TZ=UTC-5 ./quick-start.sh     # US East Coast
+TZ=UTC-6 ./quick-start.sh     # US Central Time
+
+# Or set permanently in your shell:
+echo 'export TZ=UTC+3' >> ~/.zshrc    # Turkey (add to shell profile)
+echo 'export TZ=UTC-8' >> ~/.zshrc    # US West Coast
+source ~/.zshrc                       # Reload shell config
+./quick-start.sh
 
 # Open in browser
 open http://localhost:8501

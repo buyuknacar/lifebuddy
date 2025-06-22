@@ -106,7 +106,7 @@ def search_health_data_tool(metric_and_days: str) -> str:
 
 
 def get_sleep_data_tool(days_back: str = "7") -> str:
-    """Get sleep data and patterns. Input: number of days (e.g. 7 for last week, 30 for last month). Shows total sleep hours, sleep stages (Core/REM/Deep), and sleep quality trends."""
+    """Get sleep data and patterns. Input should be just the number of days (e.g., 7 for last week, 30 for last month). Shows total sleep hours, sleep stages (Core/REM/Deep), and sleep quality trends."""
     try:
         days = _parse_integer_from_input(days_back, 7)
         result = health_service.get_sleep_data(days)
@@ -124,7 +124,7 @@ health_tools = [
     ),
     Tool(
         name="get_daily_steps",
-        description="Get daily step counts. Input should be just the number of days (e.g., 7 not days_back=7)",
+        description="Get daily step counts. Input should be just the number of days (e.g., 7)",
         func=get_steps_tool
     ),
     Tool(
@@ -154,7 +154,7 @@ health_tools = [
     ),
     Tool(
         name="get_sleep_data",
-        description="Get sleep data and patterns. Input: number of days (e.g. 7 for last week, 30 for last month). Shows total sleep hours, sleep stages (Core/REM/Deep), and sleep quality trends.",
+        description="Get sleep data and patterns. Input should be just the number of days (e.g., 7)",
         func=get_sleep_data_tool
     )
 ]
