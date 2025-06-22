@@ -12,11 +12,16 @@ services:
       - ../data:/app/data
       # Mount Downloads folder for automatic Apple Health export detection
       - ~/Downloads:/host/Downloads:ro  # Read-only access to Downloads
+      # Mount timezone files to sync with host
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
     environment:
       - LLM_PROVIDER=ollama
       - OLLAMA_BASE_URL=http://host.docker.internal:11434
       - OLLAMA_MODEL=llama3.2:3b
       - DATABASE_PATH=/app/data/lifebuddy.db
+      # Pass host timezone to container (dynamically detected)
+      - TZ=${TZ}
       # Uncomment and add your API keys to use external providers:
       # - OPENAI_API_KEY=your_openai_key_here
       # - ANTHROPIC_API_KEY=your_anthropic_key_here  

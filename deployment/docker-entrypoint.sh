@@ -60,31 +60,94 @@ ensure_ollama_model() {
 check_apple_health_export() {
     echo "🍎 Checking for Apple Health export..."
     
-    if [ -f "/host/Downloads/export.xml" ]; then
-        echo "✅ Found Apple Health export in Downloads"
-        echo "📊 Processing Apple Health data (full database overwrite)..."
-        
-        # Always do full reprocess when export file exists
-        mkdir -p /app/data/raw/apple_health_export
-        cp /host/Downloads/export.xml /app/data/raw/apple_health_export/
-        
-        # Process the data (this will drop and recreate all tables)
-        cd /app
-        python -c "
-from app.ingestion.apple_health import AppleHealthParser
-parser = AppleHealthParser('/app/data/raw/apple_health_export/export.xml')
-parser.parse_and_store('/app/data/raw/apple_health_export/export.xml')
-print('✅ Apple Health data processed successfully (full overwrite)')
-" || echo "⚠️  Error processing Apple Health data"
-        
-        # Optional: Remove the export file after processing to avoid reprocessing
-        # rm /host/Downloads/export.xml
-        echo "💡 Tip: Remove ~/Downloads/export.xml to avoid reprocessing on next startup"
-        
+    local export_file=""
+    local needs_unzip=false
+    
+    # Check for zip file first, then xml file
+    if [ -f "/host/Downloads/export.zip" ]; then
+        echo "✅ Found Apple Health export.zip in Downloads"
+        export_file="/host/Downloads/export.zip"
+        needs_unzip=true
+    elif [ -f "/host/Downloads/export.xml" ]; then
+        echo "✅ Found Apple Health export.xml in Downloads"
+        export_file="/host/Downloads/export.xml"
+        needs_unzip=false
     else
         echo "ℹ️  No Apple Health export found in ~/Downloads"
-        echo "   To add your data, export from iPhone Health app and save as ~/Downloads/export.xml"
+        echo "   To add your data, export from iPhone Health app and save as:"
+        echo "   - ~/Downloads/export.zip (recommended - direct from Health app)"
+        echo "   - ~/Downloads/export.xml (if manually extracted)"
+        return 0
     fi
+    
+    echo "📊 Processing Apple Health data (full database overwrite)..."
+    
+    # Create directory for processing
+    mkdir -p /app/data/raw/apple_health_export
+    
+    if [ "$needs_unzip" = true ]; then
+        echo "📦 Unzipping export.zip..."
+        cd /app/data/raw/apple_health_export
+        
+        # Copy and unzip the file
+        cp "$export_file" ./export.zip
+        
+        # Check if unzip is available, install if needed
+        if ! command -v unzip &> /dev/null; then
+            echo "📥 Installing unzip utility..."
+            apt-get update && apt-get install -y unzip
+        fi
+        
+        # Unzip the file
+        if unzip -o export.zip; then
+            echo "✅ Successfully unzipped export.zip"
+            # Find the export.xml file (it might be in a subdirectory)
+            if [ -f "export.xml" ]; then
+                echo "✅ Found export.xml in zip root"
+            elif [ -f "apple_health_export/export.xml" ]; then
+                echo "✅ Found export.xml in apple_health_export subdirectory"
+                mv apple_health_export/export.xml ./
+            else
+                echo "⚠️  Could not find export.xml in the zip file"
+                echo "   Zip contents:"
+                ls -la
+                return 1
+            fi
+        else
+            echo "⚠️  Failed to unzip export.zip"
+            return 1
+        fi
+        
+        # Clean up zip file
+        rm -f export.zip
+    else
+        # Copy XML file directly
+        cp "$export_file" /app/data/raw/apple_health_export/export.xml
+    fi
+    
+    # Verify we have the XML file
+    if [ ! -f "/app/data/raw/apple_health_export/export.xml" ]; then
+        echo "⚠️  export.xml not found after processing"
+        return 1
+    fi
+    
+    echo "🔄 Parsing and storing Apple Health data..."
+    
+    # Process the data (this will drop and recreate all tables)
+    cd /app
+    python -c "
+from app.ingestion.apple_health import AppleHealthParser
+parser = AppleHealthParser('/app/data/raw/apple_health_export/export.xml')
+parser.create_database()
+parser.parse_xml()
+parser.save_to_database()
+parser.print_summary()
+print('✅ Apple Health data processed successfully (full overwrite)')
+" || echo "⚠️  Error processing Apple Health data"
+    
+    # Optional: Remove the export file after processing to avoid reprocessing
+    # rm "$export_file"
+    echo "💡 Tip: Remove ~/Downloads/export.* to avoid reprocessing on next startup"
 }
 
 # Main startup sequence

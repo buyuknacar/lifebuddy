@@ -13,6 +13,7 @@ ENV DATABASE_PATH=/app/data/lifebuddy.db
 # Install only essential system dependencies
 RUN apt-get update && apt-get install -y \
     curl \
+    unzip \
     && rm -rf /var/lib/apt/lists/*
 
 # Set working directory
