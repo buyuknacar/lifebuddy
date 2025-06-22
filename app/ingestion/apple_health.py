@@ -60,8 +60,14 @@ class AppleHealthParser:
             'HKQuantityTypeIdentifierBodyFatPercentage'      # Body fat percentage
         }
         
+        # Sleep metrics - separate category for sleep analysis
+        self.sleep_metrics = {
+            'HKCategoryTypeIdentifierSleepAnalysis'          # Sleep stages and timing
+        }
+        
         self.parsed_records = []
         self.parsed_workouts = []
+        self.parsed_sleep_records = []
         
     def create_database(self):
         """Create SQLite database with timezone-aware schema"""
@@ -78,6 +84,7 @@ class AppleHealthParser:
         cursor.execute("DROP TABLE IF EXISTS health_records")
         cursor.execute("DROP TABLE IF EXISTS daily_summaries")
         cursor.execute("DROP TABLE IF EXISTS workouts")
+        cursor.execute("DROP TABLE IF EXISTS sleep_records")
         
         # User settings table - stores timezone and other user preferences
         cursor.execute("""
@@ -151,11 +158,29 @@ class AppleHealthParser:
             )
         """)
         
+        # Sleep records table - sleep analysis data in user's timezone
+        cursor.execute("""
+            CREATE TABLE sleep_records (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                record_type VARCHAR(100) NOT NULL,     -- e.g. 'HKCategoryTypeIdentifierSleepAnalysis'
+                value REAL NOT NULL,                   -- Sleep duration in hours
+                unit VARCHAR(20),                      -- 'hours'
+                start_date DATETIME NOT NULL,          -- When sleep started (user's timezone)
+                end_date DATETIME,                     -- When sleep ended (user's timezone)
+                creation_date DATETIME,                -- When recorded in Health app (user's timezone)
+                source_name VARCHAR(100),              -- Data source (iPhone, Apple Watch, etc.)
+                sleep_stage VARCHAR(50),               -- Sleep stage value (InBed, Core, REM, Deep)
+                data_type VARCHAR(50),                 -- 'total_time_in_bed' or 'sleep_stage'
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        
         # Performance indexes - critical for fast queries on large datasets
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_health_records_type_date ON health_records(record_type, start_date)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_health_records_date ON health_records(start_date)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_daily_summaries_date ON daily_summaries(date)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_workouts_date ON workouts(start_date)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_sleep_records_date ON sleep_records(start_date)")
         
         conn.commit()
         conn.close()
@@ -177,6 +202,7 @@ class AppleHealthParser:
         record_count = 0
         workout_count = 0
         target_records = 0
+        sleep_records = 0
         
         for event, elem in context:
             if event == 'end':
@@ -189,6 +215,13 @@ class AppleHealthParser:
                         if record_data:
                             self.parsed_records.append(record_data)
                             target_records += 1
+                    
+                    # Parse sleep records separately
+                    elif record_type in self.sleep_metrics:
+                        sleep_data = self._parse_sleep_record(elem)
+                        if sleep_data:
+                            self.parsed_sleep_records.append(sleep_data)
+                            sleep_records += 1
                     
                     record_count += 1
                     
@@ -203,14 +236,15 @@ class AppleHealthParser:
                 
                 # Progress indicator for large files
                 if record_count % 200000 == 0:
-                    print(f"📊 Processed {record_count:,} total records, {target_records:,} target metrics...")
+                    print(f"📊 Processed {record_count:,} total records, {target_records:,} target metrics, {sleep_records:,} sleep records...")
         
         print(f"\n✅ Parsing complete!")
         print(f"📈 Total Records Processed: {record_count:,}")
         print(f"🎯 Target Health Records: {target_records:,}")
         print(f"🏃 Workouts: {workout_count:,}")
+        print(f"💤 Sleep Records: {sleep_records:,}")
         
-        return target_records, workout_count
+        return target_records, workout_count, sleep_records
     
     def _parse_health_record(self, elem) -> Optional[Dict]:
         """Parse individual health record from XML element with timezone awareness"""
@@ -298,6 +332,86 @@ class AppleHealthParser:
             print(f"⚠️ Error parsing workout: {e}")
             return None
     
+    def _parse_sleep_record(self, elem) -> Optional[Dict]:
+        """Parse sleep record from XML element with timezone awareness - both old and new formats"""
+        try:
+            sleep_value = elem.get('value', '')
+            
+            # Handle old iPhone format (InBed = total time in bed)
+            if sleep_value == 'HKCategoryValueSleepAnalysisInBed':
+                start_date = self._parse_date(elem.get('startDate'))
+                end_date = self._parse_date(elem.get('endDate'))
+                creation_date = self._parse_date(elem.get('creationDate'))
+                
+                # Calculate duration in hours
+                if start_date and end_date:
+                    try:
+                        start_dt = datetime.fromisoformat(start_date.replace('Z', '+00:00'))
+                        end_dt = datetime.fromisoformat(end_date.replace('Z', '+00:00'))
+                        duration_hours = (end_dt - start_dt).total_seconds() / 3600
+                    except:
+                        duration_hours = 0
+                else:
+                    duration_hours = 0
+                
+                return {
+                    'record_type': elem.get('type'),
+                    'value': duration_hours,
+                    'unit': 'hours',
+                    'start_date': start_date,
+                    'end_date': end_date,
+                    'creation_date': creation_date,
+                    'source_name': elem.get('sourceName', ''),
+                    'sleep_stage': 'InBed',
+                    'data_type': 'total_time_in_bed'
+                }
+            
+            # Handle new Apple Watch sleep stages (actual sleep time)
+            elif sleep_value in ['HKCategoryValueSleepAnalysisAsleepCore', 
+                               'HKCategoryValueSleepAnalysisAsleepREM', 
+                               'HKCategoryValueSleepAnalysisAsleepDeep']:
+                start_date = self._parse_date(elem.get('startDate'))
+                end_date = self._parse_date(elem.get('endDate'))
+                creation_date = self._parse_date(elem.get('creationDate'))
+                
+                # Calculate duration in hours
+                if start_date and end_date:
+                    try:
+                        start_dt = datetime.fromisoformat(start_date.replace('Z', '+00:00'))
+                        end_dt = datetime.fromisoformat(end_date.replace('Z', '+00:00'))
+                        duration_hours = (end_dt - start_dt).total_seconds() / 3600
+                    except:
+                        duration_hours = 0
+                else:
+                    duration_hours = 0
+                
+                # Map sleep stage names
+                stage_map = {
+                    'HKCategoryValueSleepAnalysisAsleepCore': 'Core',
+                    'HKCategoryValueSleepAnalysisAsleepREM': 'REM', 
+                    'HKCategoryValueSleepAnalysisAsleepDeep': 'Deep'
+                }
+                
+                return {
+                    'record_type': elem.get('type'),
+                    'value': duration_hours,
+                    'unit': 'hours',
+                    'start_date': start_date,
+                    'end_date': end_date,
+                    'creation_date': creation_date,
+                    'source_name': elem.get('sourceName', ''),
+                    'sleep_stage': stage_map.get(sleep_value, sleep_value),
+                    'data_type': 'sleep_stage'
+                }
+            
+            # Skip other sleep values (Awake, Unspecified, etc.)
+            else:
+                return None
+                
+        except Exception as e:
+            logger.warning(f"Error parsing sleep record: {e}")
+            return None
+    
     def _parse_date(self, date_str: str) -> Optional[str]:
         """
         Parse Apple Health date string and convert to user's timezone for storage
@@ -376,6 +490,18 @@ class AppleHealthParser:
             (w['workout_type'], w['start_date'], w['end_date'],
              w['duration_minutes'], w['total_energy_burned'], w['total_distance_km'])
             for w in self.parsed_workouts
+        ])
+        
+        # Insert sleep records in batch
+        print(f"💤 Inserting {len(self.parsed_sleep_records):,} sleep records...")
+        cursor.executemany("""
+            INSERT INTO sleep_records 
+            (record_type, value, unit, start_date, end_date, creation_date, source_name, sleep_stage, data_type)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, [
+            (s['record_type'], s['value'], s['unit'], 
+             s['start_date'], s['end_date'], s['creation_date'], s['source_name'], s['sleep_stage'], s['data_type'])
+            for s in self.parsed_sleep_records
         ])
         
         conn.commit()
@@ -467,6 +593,11 @@ class AppleHealthParser:
         workout_count = cursor.fetchone()[0]
         print(f"🏃 Workouts: {workout_count:,}")
         
+        # Sleep records
+        cursor.execute("SELECT COUNT(*) FROM sleep_records")
+        sleep_count = cursor.fetchone()[0]
+        print(f"💤 Sleep Records: {sleep_count:,}")
+        
         # Sample daily summary to verify data quality
         cursor.execute("""
             SELECT date, steps, active_energy_burned, avg_heart_rate 
@@ -501,7 +632,7 @@ def main():
     parser.create_database()
     
     # Parse XML and extract target metrics
-    target_records, workouts = parser.parse_xml()
+    target_records, workouts, sleep_records = parser.parse_xml()
     
     # Save to database and generate daily summaries
     parser.save_to_database()

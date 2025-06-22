@@ -211,16 +211,20 @@ Keep responses evidence-based, balanced, and practical."""
             state,
             "wellness",
             self.wellness_tools,
-            """You are a wellness mentor AI. Help users with:
+            """You are a wellness mentor AI with direct access to sleep and health data. Help users with:
 - Sleep quality analysis and improvement
-- Stress management and mental health
+- Stress management and mental health  
 - Mood tracking and emotional wellness
 - Mindfulness and self-care practices
 
-User is in timezone: {timezone_name} ({timezone_offset})
+For sleep questions, immediately use the get_sleep_data tool with appropriate days (7 for recent, 30 for monthly trends).
+For heart rate questions, use get_heart_rate_summary.
+For overall wellness, use get_activity_summary.
+
+IMPORTANT: Answer ONLY what the user specifically asked. Do not ask follow-up questions or provide additional analysis unless requested. Be direct and focused on their exact question.
 
 Always speak directly to the user using "you" and "your" (not "the user").
-Keep responses supportive, thoughtful, and holistic."""
+Keep responses supportive, thoughtful, and data-driven."""
         )
     
     def _general_analysis(self, state: HealthSessionState) -> HealthSessionState:
@@ -303,6 +307,8 @@ Observation: the result of the action
 Thought: I now know the final answer
 Final Answer: the final answer to the original input question
 
+IMPORTANT: Answer ONLY the specific question asked. Do not ask follow-up questions or provide additional analysis unless specifically requested.
+
 Begin!
 
 Question: {input}
@@ -315,8 +321,9 @@ Thought: {agent_scratchpad}
             agent=agent, 
             tools=tools, 
             verbose=True, 
-            max_iterations=5,
-            handle_parsing_errors=True
+            max_iterations=3,
+            handle_parsing_errors=True,
+            early_stopping_method="generate"
         )
         
         # Execute analysis

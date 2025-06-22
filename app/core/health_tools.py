@@ -105,6 +105,16 @@ def search_health_data_tool(metric_and_days: str) -> str:
         return f"Error searching health data: {str(e)}"
 
 
+def get_sleep_data_tool(days_back: str = "7") -> str:
+    """Get sleep data and patterns. Input: number of days (e.g. 7 for last week, 30 for last month). Shows total sleep hours, sleep stages (Core/REM/Deep), and sleep quality trends."""
+    try:
+        days = _parse_integer_from_input(days_back, 7)
+        result = health_service.get_sleep_data(days)
+        return json.dumps(result, indent=2)
+    except Exception as e:
+        return f"Error getting sleep data: {str(e)}"
+
+
 # Create LangChain Tool objects with clear descriptions
 health_tools = [
     Tool(
@@ -141,6 +151,11 @@ health_tools = [
         name="search_health_data",
         description="Search for specific health metrics. Input format: 'metric_type,days_back' (e.g., 'steps,7')",
         func=search_health_data_tool
+    ),
+    Tool(
+        name="get_sleep_data",
+        description="Get sleep data and patterns. Input: number of days (e.g. 7 for last week, 30 for last month). Shows total sleep hours, sleep stages (Core/REM/Deep), and sleep quality trends.",
+        func=get_sleep_data_tool
     )
 ]
 
@@ -168,9 +183,9 @@ def get_nutrition_tools():
 def get_wellness_tools():
     """Get tools relevant for wellness agent."""
     return [
-        health_tools[0],  # timezone
         health_tools[2],  # heart_rate (stress indicator)
         health_tools[5],  # activity_summary (overall wellness)
+        health_tools[7],  # sleep_data (sleep quality and duration)
     ]
 
 

@@ -33,7 +33,7 @@ class HealthDataService:
             cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
             tables = [row[0] for row in cursor.fetchall()]
             
-            expected_tables = ['health_records', 'daily_summaries', 'workouts', 'user_settings']
+            expected_tables = ['health_records', 'daily_summaries', 'workouts', 'user_settings', 'sleep_records']
             missing_tables = [t for t in expected_tables if t not in tables]
             
             if missing_tables:
@@ -238,6 +238,102 @@ class HealthDataService:
             "daily_breakdown": results
         }
     
+    def get_sleep_data(self, days_back: int = 7) -> Dict[str, Any]:
+        """Get sleep data for the last N days - handles both old iPhone and new Apple Watch formats."""
+        end_date = datetime.now().date()
+        start_date = end_date - timedelta(days=days_back)
+        
+        # Get individual sleep records and aggregate by date and type
+        query = """
+        SELECT 
+            DATE(start_date) as sleep_date,
+            value as duration_hours,
+            start_date,
+            end_date,
+            source_name,
+            sleep_stage,
+            data_type
+        FROM sleep_records 
+        WHERE DATE(start_date) >= ? AND DATE(start_date) <= ?
+        ORDER BY start_date DESC
+        """
+        
+        results = self._execute_query(query, (start_date, end_date))
+        
+        if not results:
+            return {"message": "No sleep data found for the requested period"}
+        
+        # Aggregate by date, handling both old and new formats
+        daily_sleep = {}
+        for record in results:
+            date = record['sleep_date']
+            if date not in daily_sleep:
+                daily_sleep[date] = {
+                    'date': date,
+                    'total_sleep_hours': 0,
+                    'time_in_bed_hours': 0,
+                    'sleep_stages': {'Core': 0, 'REM': 0, 'Deep': 0},
+                    'data_source': 'mixed',
+                    'sources': set()
+                }
+            
+            daily_sleep[date]['sources'].add(record['source_name'])
+            
+            # Handle old iPhone format (total time in bed)
+            if record['data_type'] == 'total_time_in_bed':
+                daily_sleep[date]['time_in_bed_hours'] += record['duration_hours']
+                daily_sleep[date]['data_source'] = 'iPhone'
+            
+            # Handle new Apple Watch format (sleep stages)
+            elif record['data_type'] == 'sleep_stage':
+                stage = record['sleep_stage']
+                if stage in ['Core', 'REM', 'Deep']:
+                    daily_sleep[date]['sleep_stages'][stage] += record['duration_hours']
+                    daily_sleep[date]['data_source'] = 'Apple Watch'
+        
+        # Calculate total sleep for Apple Watch data and clean up
+        daily_breakdown = []
+        for date_data in daily_sleep.values():
+            # For Apple Watch data, sum all sleep stages for total sleep time
+            if date_data['data_source'] == 'Apple Watch':
+                date_data['total_sleep_hours'] = sum(date_data['sleep_stages'].values())
+            # For iPhone data, use time_in_bed as sleep time (older format)
+            elif date_data['data_source'] == 'iPhone':
+                date_data['total_sleep_hours'] = date_data['time_in_bed_hours']
+            
+            # Clean up and format
+            date_data['sources'] = list(date_data['sources'])
+            date_data['total_sleep_hours'] = round(date_data['total_sleep_hours'], 1)
+            date_data['time_in_bed_hours'] = round(date_data['time_in_bed_hours'], 1)
+            
+            # Round sleep stages
+            for stage in date_data['sleep_stages']:
+                date_data['sleep_stages'][stage] = round(date_data['sleep_stages'][stage], 1)
+            
+            daily_breakdown.append(date_data)
+        
+        # Sort by date descending
+        daily_breakdown.sort(key=lambda x: x['date'], reverse=True)
+        
+        # Calculate overall statistics
+        total_hours = sum(day['total_sleep_hours'] for day in daily_breakdown)
+        avg_hours = total_hours / len(daily_breakdown) if daily_breakdown else 0
+        
+        # Separate Apple Watch vs iPhone data counts
+        watch_days = len([d for d in daily_breakdown if d['data_source'] == 'Apple Watch'])
+        phone_days = len([d for d in daily_breakdown if d['data_source'] == 'iPhone'])
+        
+        return {
+            "period": f"Last {days_back} days",
+            "total_sleep_hours": round(total_hours, 1),
+            "average_sleep_hours": round(avg_hours, 1),
+            "days_with_data": len(daily_breakdown),
+            "apple_watch_days": watch_days,
+            "iphone_days": phone_days,
+            "daily_breakdown": daily_breakdown,
+            "raw_records_count": len(results)
+        }
+    
     def search_health_data(self, metric_type: str, days_back: int = 7) -> Dict[str, Any]:
         """Generic search for health data by metric type."""
         metric_map = {
@@ -245,7 +341,8 @@ class HealthDataService:
             "heart_rate": self.get_heart_rate_summary,
             "workouts": lambda d: self.get_recent_workouts(limit=d),
             "weight": self.get_weight_progress,
-            "activity": self.get_activity_summary
+            "activity": self.get_activity_summary,
+            "sleep": self.get_sleep_data
         }
         
         if metric_type.lower() not in metric_map:
