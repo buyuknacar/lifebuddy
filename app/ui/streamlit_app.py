@@ -76,13 +76,12 @@ def main():
     st.title("🌟 LifeBuddy")
     st.markdown("*Your AI Health Companion*")
     
-    # Check API status
+    # Check API status (silently)
     api = get_api_client()
     status = api.health_check()
     
     if status.get("status") != "healthy":
         st.error("🚨 Backend Service Unavailable")
-        st.markdown(f"**Error:** {status.get('message', 'Unknown error')}")
         st.markdown("""
         Please start the FastAPI backend first:
         ```bash
@@ -91,51 +90,57 @@ def main():
         """)
         return
     
-    # Success - show connected status
-    st.success("✅ Connected to backend")
-    
-    # Model Provider Selection
-    st.markdown("---")
-    st.subheader("🤖 Model Provider")
-    
-    # Get available providers
-    providers_data = api.get_providers()
-    providers = providers_data.get("providers", [])
-    
-    if not providers:
-        st.error("No providers available")
-        return
-    
-    # Create provider options
-    provider_options = {}
-    default_provider = None
-    
-    for provider in providers:
-        provider_options[provider["display"]] = provider["name"]
-        if provider.get("default", False):
-            default_provider = provider["display"]
-    
-    # Provider dropdown
-    selected_display = st.selectbox(
-        "Choose your AI model:",
-        options=list(provider_options.keys()),
-        index=list(provider_options.keys()).index(default_provider) if default_provider else 0,
-        help="Select which AI model to use for your health conversations"
-    )
-    
-    selected_provider = provider_options[selected_display]
-    
-    # Show provider info
-    st.info(f"Using: **{selected_display}**")
-    
-    # Chat Interface
-    st.markdown("---")
-    st.subheader("💬 Chat with Your AI Health Companion")
+    # Model Provider Selection (compact)
+    with st.expander("🤖 AI Model", expanded=False):
+        # Get available providers
+        providers_data = api.get_providers()
+        providers = providers_data.get("providers", [])
+        
+        if not providers:
+            st.error("No providers available")
+            return
+        
+        # Create provider options
+        provider_options = {}
+        default_provider = None
+        
+        for provider in providers:
+            provider_options[provider["display"]] = provider["name"]
+            if provider.get("default", False):
+                default_provider = provider["display"]
+        
+        # Provider dropdown
+        selected_display = st.selectbox(
+            "Choose AI model:",
+            options=list(provider_options.keys()),
+            index=list(provider_options.keys()).index(default_provider) if default_provider else 0,
+            help="Select which AI model to use for health conversations"
+        )
+        
+        selected_provider = provider_options[selected_display]
+        st.info(f"Using: **{selected_display}**")
     
     # Initialize session state for chat
     if "messages" not in st.session_state:
         st.session_state.messages = []
         st.session_state.session_id = None
+    
+    # Chat Introduction (only show when chat is empty)
+    if len(st.session_state.messages) == 0:
+        st.markdown("---")
+        st.markdown("""
+        ### 💬 Welcome to LifeBuddy!
+        
+        I can analyze your health data and provide insights. Ask me about:
+        
+        **❤️ Fitness:** *"Show my heart rate summary"* • *"How many steps this week?"* • *"Recent workouts"*
+        
+        **💤 Wellness:** *"How was my sleep lately?"* • *"Analyze my stress levels"* • *"Sleep patterns"*
+        
+        **📊 Overview:** *"My activity summary"* • *"Health trends"* • *"Weekly fitness report"*
+        
+        ---
+        """)
     
     # Display chat messages
     for message in st.session_state.messages:
@@ -143,7 +148,7 @@ def main():
             st.markdown(message["content"])
     
     # Chat input
-    if prompt := st.chat_input("Ask me about your health data or just say hello..."):
+    if prompt := st.chat_input("Ask me about your health data..."):
         # Add user message to chat history
         st.session_state.messages.append({"role": "user", "content": prompt})
         with st.chat_message("user"):
@@ -176,11 +181,11 @@ def main():
             # Show thinking chain if available
             if thinking_chain:
                 with thinking_placeholder.container():
-                    st.info("🔍 **Data Retrieved:**")
+                    st.success("🔍 **Health Data Retrieved:**")
                     for i, step in enumerate(thinking_chain):
-                        with st.expander(f"Tool: {step.get('tool_name', 'Unknown')}", expanded=False):
-                            st.text(f"Input: {step.get('tool_input', 'N/A')}")
-                            st.text("Output:")
+                        with st.expander(f"📊 {step.get('tool_name', 'Unknown')}", expanded=False):
+                            st.text(f"Input: {step.get('tool_input', 'N/A')} days")
+                            st.text("Data:")
                             st.code(step.get('tool_output', 'No output'), language="json")
             else:
                 thinking_placeholder.empty()
@@ -192,13 +197,15 @@ def main():
         # Add assistant response to chat history
         st.session_state.messages.append({"role": "assistant", "content": ai_response})
     
-    # Chat controls
-    col1, col2 = st.columns([1, 4])
-    with col1:
-        if st.button("Clear Chat"):
-            st.session_state.messages = []
-            st.session_state.session_id = None
-            st.rerun()
+    # Chat controls (bottom)
+    if len(st.session_state.messages) > 0:
+        st.markdown("---")
+        col1, col2 = st.columns([1, 4])
+        with col1:
+            if st.button("🗑️ Clear Chat"):
+                st.session_state.messages = []
+                st.session_state.session_id = None
+                st.rerun()
 
 
 if __name__ == "__main__":
