@@ -44,6 +44,19 @@ LifeBuddy is an open-source, privacy-first health comapnion that transforms your
 **Fully automated setup - everything handled for you:**
 
 ### Quick Start
+
+
+#### Adding Your Apple Health Data
+
+1. **Export from iPhone**: 
+   - Open Health app → Profile → Export All Health Data
+   - This creates a zip file with all your health data
+
+2. **Import to LifeBuddy**:
+   - **Docker users**: Save export.zip to Downloads folder (auto-detected!)
+   - **Manual setup**: `python app/ingestion/apple_health.py path/to/export.zip`
+
+
 ```bash
 # Clone the repository
 git clone git@github.com:buyuknacar/lifebuddy.git
@@ -62,23 +75,10 @@ cd lifebuddy
 # Examples:
 TZ=UTC+3 ./quick-start.sh     # Turkey
 TZ=UTC-8 ./quick-start.sh     # US West Coast
-TZ=UTC-5 ./quick-start.sh     # US East Coast
-TZ=UTC-6 ./quick-start.sh     # US Central Time
-
-# Or set permanently in your shell:
-echo 'export TZ=UTC+3' >> ~/.zshrc    # Turkey (add to shell profile)
-echo 'export TZ=UTC-8' >> ~/.zshrc    # US West Coast
-source ~/.zshrc                       # Reload shell config
-./quick-start.sh
 
 # Open in browser
 open http://localhost:8501
 ```
-
-### Add Your Health Data (Optional)
-1. Export health data from iPhone Health app
-2. Save as `~/Downloads/export.xml` 
-3. Restart container - data will be auto-processed
 
 **What the setup script does:**
 - ✅ Installs Ollama if not present
@@ -126,15 +126,6 @@ poetry run streamlit run app/ui/streamlit_app.py
 
 ## 📊 Using LifeBuddy (Phase 1)
 
-### Adding Your Apple Health Data
-
-1. **Export from iPhone**: 
-   - Open Health app → Profile → Export All Health Data
-   - This creates a zip file with all your health data
-
-2. **Import to LifeBuddy**:
-   - **Docker users**: Save export.zip to Downloads folder (auto-detected!)
-   - **Manual setup**: `python app/ingestion/apple_health.py path/to/export.zip`
 
 ### Current Capabilities
 
