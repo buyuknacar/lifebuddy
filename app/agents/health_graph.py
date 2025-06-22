@@ -262,7 +262,8 @@ Keep responses concise and personable."""),
             state["current_analysis"] = {
                 "domain": "general_conversation",
                 "result": response_text,
-                "tools_used": []
+                "tools_used": [],
+                "thinking_chain": []  # No tools used in general conversation
             }
             
         except Exception as e:
@@ -270,7 +271,8 @@ Keep responses concise and personable."""),
             state["current_analysis"] = {
                 "domain": "general_conversation", 
                 "result": "Hello! I'm LifeBuddy, your AI health companion. I can help you analyze your health data including steps, workouts, heart rate, and more. What would you like to know about your health?",
-                "tools_used": []
+                "tools_used": [],
+                "thinking_chain": []
             }
         
         return state
@@ -323,10 +325,11 @@ Thought: {agent_scratchpad}
             verbose=True, 
             max_iterations=3,
             handle_parsing_errors=True,
-            early_stopping_method="generate"
+            return_intermediate_steps=True  # This captures tool calls for thinking chain
         )
         
         # Execute analysis
+        thinking_chain = []
         try:
             latest_message = state["messages"][-1]
             result = agent_executor.invoke({
@@ -334,10 +337,24 @@ Thought: {agent_scratchpad}
                 "system_prompt": system_prompt
             })
             
+            # Capture thinking chain from intermediate steps
+            intermediate_steps = result.get("intermediate_steps", [])
+            for step in intermediate_steps:
+                if len(step) >= 2:
+                    action, observation = step[0], step[1]
+                    # Extract clean tool name (remove parameters if present)
+                    tool_name = action.tool if hasattr(action, 'tool') else str(action).split('(')[0]
+                    thinking_chain.append({
+                        "tool_name": tool_name,
+                        "tool_input": str(action.tool_input) if hasattr(action, 'tool_input') else "",
+                        "tool_output": str(observation)
+                    })
+            
             state["current_analysis"] = {
                 "domain": domain,
                 "result": result["output"],
-                "tools_used": [tool.name for tool in tools]
+                "tools_used": [tool.name for tool in tools],
+                "thinking_chain": thinking_chain
             }
             state["tools_used"] = [tool.name for tool in tools]
             
@@ -346,7 +363,8 @@ Thought: {agent_scratchpad}
             state["current_analysis"] = {
                 "domain": domain,
                 "result": f"I encountered an error analyzing your {domain} data: {str(e)}",
-                "tools_used": []
+                "tools_used": [],
+                "thinking_chain": []
             }
             state["tools_used"] = []
         
@@ -363,7 +381,7 @@ Thought: {agent_scratchpad}
         
         return state
     
-    def chat(self, message: str, session_id: Optional[str] = None) -> str:
+    def chat(self, message: str, session_id: Optional[str] = None) -> Dict[str, Any]:
         """Main chat interface for health conversations."""
         # Create initial state
         initial_state = {
@@ -381,11 +399,23 @@ Thought: {agent_scratchpad}
         # Execute graph
         try:
             result = self.compiled_graph.invoke(initial_state)
-            return result["final_response"]
+            # Extract thinking chain from current_analysis
+            current_analysis = result.get("current_analysis", {})
+            thinking_chain = current_analysis.get("thinking_chain", [])
+            
+            return {
+                "response": result["final_response"],
+                "thinking_chain": thinking_chain,
+                "intent": result.get("current_intent", "unknown")
+            }
             
         except Exception as e:
             logger.error(f"Graph execution error: {e}")
-            return f"I encountered an error processing your request: {str(e)}"
+            return {
+                "response": f"I encountered an error processing your request: {str(e)}",
+                "thinking_chain": [],
+                "intent": "error"
+            }
     
     def route_query(self, query: str, context: str = "") -> Dict[str, Any]:
         """Compatibility method for existing router interface."""
@@ -397,7 +427,7 @@ Thought: {agent_scratchpad}
         return {
             "intent": "general",  # Could be enhanced to track this
             "agent": "LangGraph Health Agent",
-            "response": response,
+            "response": response["response"],
             "query": query,
             "session_id": session_id
         }

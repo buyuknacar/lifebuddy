@@ -42,6 +42,8 @@ class ChatResponse(BaseModel):
     response: str = Field(..., description="Agent response")
     session_id: str = Field(..., description="Session ID for conversation tracking")
     timestamp: datetime = Field(default_factory=datetime.now)
+    thinking_chain: Optional[List[Dict[str, Any]]] = Field(None, description="Data retrieved from tools")
+    intent: Optional[str] = Field(None, description="Classified user intent")
 
 
 class HealthMetricsResponse(BaseModel):
@@ -296,7 +298,7 @@ async def chat_message(
                 dynamic_agent.update_llm(dynamic_llm)  # Use the update method
                 
                 # Use the dynamic agent for this request
-                response = dynamic_agent.chat(
+                agent_result = dynamic_agent.chat(
                     message=chat_request.message,
                     session_id=session_id
                 )
@@ -309,15 +311,27 @@ async def chat_message(
                     os.environ.pop("LLM_PROVIDER", None)
         else:
             # Use default agent (Ollama from Docker environment)
-            response = agent.chat(
+            agent_result = agent.chat(
                 message=chat_request.message,
                 session_id=session_id
             )
         
-        return ChatResponse(
-            response=response,
-            session_id=session_id
-        )
+        # Handle both old string format and new dict format for backwards compatibility
+        if isinstance(agent_result, dict):
+            return ChatResponse(
+                response=agent_result.get("response", "No response"),
+                session_id=session_id,
+                thinking_chain=agent_result.get("thinking_chain", []),
+                intent=agent_result.get("intent", "unknown")
+            )
+        else:
+            # Backwards compatibility for string responses
+            return ChatResponse(
+                response=str(agent_result),
+                session_id=session_id,
+                thinking_chain=[],
+                intent="unknown"
+            )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Chat error: {str(e)}")
 
@@ -382,7 +396,7 @@ async def websocket_endpoint(websocket: WebSocket):
                         dynamic_agent = HealthAgentGraph()
                         dynamic_agent.update_llm(dynamic_llm)
                         
-                        response = dynamic_agent.chat(user_message, session_id)
+                        agent_result = dynamic_agent.chat(user_message, session_id)
                         
                     finally:
                         if original_provider:
@@ -392,13 +406,26 @@ async def websocket_endpoint(websocket: WebSocket):
                 else:
                     # Use default agent
                     agent = get_health_agent()
-                    response = agent.chat(user_message, session_id)
+                    agent_result = agent.chat(user_message, session_id)
+                
+                # Handle both old string format and new dict format
+                if isinstance(agent_result, dict):
+                    response_text = agent_result.get("response", "No response")
+                    thinking_chain = agent_result.get("thinking_chain", [])
+                    intent = agent_result.get("intent", "unknown")
+                else:
+                    # Backwards compatibility for string responses
+                    response_text = str(agent_result)
+                    thinking_chain = []
+                    intent = "unknown"
                 
                 # Send response back to client
                 response_data = {
-                    "response": response,
+                    "response": response_text,
                     "session_id": session_id,
-                    "timestamp": datetime.now().isoformat()
+                    "timestamp": datetime.now().isoformat(),
+                    "thinking_chain": thinking_chain,
+                    "intent": intent
                 }
                 
                 await manager.send_personal_message(

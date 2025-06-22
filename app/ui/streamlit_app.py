@@ -151,19 +151,42 @@ def main():
         
         # Get AI response
         with st.chat_message("assistant"):
-            with st.spinner("Thinking..."):
-                response = api.chat(
-                    message=prompt, 
-                    session_id=st.session_state.session_id,
-                    provider=selected_provider
-                )
-                
-                if "error" in response:
-                    ai_response = f"Sorry, I encountered an error: {response['error']}"
-                else:
-                    ai_response = response.get("response", "I'm not sure how to respond to that.")
-                    st.session_state.session_id = response.get("session_id")
-                
+            # Create placeholder for thinking chain
+            thinking_placeholder = st.empty()
+            response_placeholder = st.empty()
+            
+            with thinking_placeholder.container():
+                st.info("🤔 Thinking...")
+            
+            # Get response from API
+            response = api.chat(
+                message=prompt, 
+                session_id=st.session_state.session_id,
+                provider=selected_provider
+            )
+            
+            if "error" in response:
+                ai_response = f"Sorry, I encountered an error: {response['error']}"
+                thinking_chain = []
+            else:
+                ai_response = response.get("response", "I'm not sure how to respond to that.")
+                thinking_chain = response.get("thinking_chain", [])
+                st.session_state.session_id = response.get("session_id")
+            
+            # Show thinking chain if available
+            if thinking_chain:
+                with thinking_placeholder.container():
+                    st.info("🔍 **Data Retrieved:**")
+                    for i, step in enumerate(thinking_chain):
+                        with st.expander(f"Tool: {step.get('tool_name', 'Unknown')}", expanded=False):
+                            st.text(f"Input: {step.get('tool_input', 'N/A')}")
+                            st.text("Output:")
+                            st.code(step.get('tool_output', 'No output'), language="json")
+            else:
+                thinking_placeholder.empty()
+            
+            # Show final response
+            with response_placeholder.container():
                 st.markdown(ai_response)
         
         # Add assistant response to chat history
