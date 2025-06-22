@@ -46,7 +46,7 @@ LifeBuddy is an open-source, privacy-first health comapnion that transforms your
 ### Quick Start
 ```bash
 # Clone the repository
-git clone <repository-url>
+git clone git@github.com:buyuknacar/lifebuddy.git
 cd lifebuddy
 
 # Install Docker Desktop (if not already installed)
