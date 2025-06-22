@@ -25,6 +25,7 @@ class AppleHealthExplorer:
         self.workout_types = Counter()
         self.source_names = Counter()
         self.units = defaultdict(set)
+        self.workout_samples = []
         
     def explore_all_data(self):
         """Analyze the complete Apple Health export."""
@@ -101,6 +102,41 @@ class AppleHealthExplorer:
         """Analyze a workout element."""
         workout_type = elem.get('workoutActivityType', 'Unknown')
         self.workout_types[workout_type] += 1
+        
+        # Store detailed workout sample for analysis
+        if len(self.workout_samples) < 5:  # Store first 5 workout samples
+            workout_sample = {
+                'workoutActivityType': elem.get('workoutActivityType', ''),
+                'startDate': elem.get('startDate', ''),
+                'endDate': elem.get('endDate', ''),
+                'duration': elem.get('duration', ''),
+                'durationUnit': elem.get('durationUnit', ''),
+                'totalEnergyBurned': elem.get('totalEnergyBurned', ''),
+                'totalEnergyBurnedUnit': elem.get('totalEnergyBurnedUnit', ''),
+                'totalDistance': elem.get('totalDistance', ''),
+                'totalDistanceUnit': elem.get('totalDistanceUnit', ''),
+                'sourceName': elem.get('sourceName', ''),
+                'sourceVersion': elem.get('sourceVersion', ''),
+                'creationDate': elem.get('creationDate', ''),
+                'statistics': []
+            }
+            
+            # Parse nested WorkoutStatistics
+            for child in elem:
+                if child.tag == 'WorkoutStatistics':
+                    stat = {
+                        'type': child.get('type', ''),
+                        'startDate': child.get('startDate', ''),
+                        'endDate': child.get('endDate', ''),
+                        'average': child.get('average', ''),
+                        'maximum': child.get('maximum', ''),
+                        'minimum': child.get('minimum', ''),
+                        'sum': child.get('sum', ''),
+                        'unit': child.get('unit', '')
+                    }
+                    workout_sample['statistics'].append(stat)
+            
+            self.workout_samples.append(workout_sample)
     
     def _print_comprehensive_report(self):
         """Print a comprehensive analysis report."""
@@ -124,6 +160,9 @@ class AppleHealthExplorer:
         
         # 4. Workout Analysis
         self._analyze_workouts()
+        
+        # 4.5. Detailed Workout Structure Analysis
+        self._analyze_workout_structure()
         
         # 5. Data Sources
         self._analyze_sources()
@@ -228,6 +267,30 @@ class AppleHealthExplorer:
             
             if len(self.workout_types) > 10:
                 print(f"   ... and {len(self.workout_types) - 10} more types")
+        else:
+            print("❌ No workout data found")
+        print()
+    
+    def _analyze_workout_structure(self):
+        """Analyze detailed workout structure."""
+        print("🏃 WORKOUT STRUCTURE ANALYSIS:")
+        print("-" * 40)
+        
+        if self.workout_samples:
+            print(f"Found {len(self.workout_samples)} workout samples:")
+            for workout_sample in self.workout_samples[:5]:  # Show first 5 samples
+                print(f"🏃 Workout Type: {workout_sample['workoutActivityType']}")
+                print(f"📅 Start Date: {workout_sample['startDate']}")
+                print(f"📅 End Date: {workout_sample['endDate']}")
+                print(f"🕒 Duration: {workout_sample['duration']} {workout_sample['durationUnit']}")
+                print(f"🔥 Total Energy Burned: {workout_sample['totalEnergyBurned']} {workout_sample['totalEnergyBurnedUnit']}")
+                print(f"🏃 Total Distance: {workout_sample['totalDistance']} {workout_sample['totalDistanceUnit']}")
+                print(f"🏷 Source: {workout_sample['sourceName']}")
+                print(f"📅 Creation Date: {workout_sample['creationDate']}")
+                print("🏋️ Statistics:")
+                for stat in workout_sample['statistics']:
+                    print(f"   • {stat['type']} - {stat['average']} {stat['unit']}")
+                print()
         else:
             print("❌ No workout data found")
         print()

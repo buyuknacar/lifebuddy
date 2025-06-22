@@ -274,7 +274,9 @@ class AppleHealthParser:
                         workout_count += 1
                 
                 # Memory management: Clear processed elements to prevent memory bloat
-                elem.clear()
+                # Only clear after we've completely finished processing the element
+                if elem.tag in ['Record', 'Workout']:
+                    elem.clear()
                 
                 # Progress indicator for large files
                 if record_count % 200000 == 0:
@@ -319,17 +321,21 @@ class AppleHealthParser:
     def _parse_workout(self, elem) -> Optional[Dict]:
         """Parse workout record from XML element with timezone awareness"""
         try:
-            start_date = self._parse_date(elem.get('startDate'))
-            end_date = self._parse_date(elem.get('endDate'))
+            # Extract all attributes immediately to avoid reference issues
+            start_date_attr = elem.get('startDate', '')
+            end_date_attr = elem.get('endDate', '')
+            duration_attr = elem.get('duration', '0')
+            duration_unit_attr = elem.get('durationUnit', 'min')
+            workout_type_attr = elem.get('workoutActivityType', '')
+            
+            start_date = self._parse_date(start_date_attr)
+            end_date = self._parse_date(end_date_attr)
             
             # Parse workout duration
-            duration_str = elem.get('duration', '0')
-            duration_unit = elem.get('durationUnit', 'min')
-            
             try:
-                duration = float(duration_str)
+                duration = float(duration_attr)
                 # Apple Health typically stores duration in minutes
-                if duration_unit == 'min':
+                if duration_unit_attr == 'min':
                     duration_minutes = duration
                 else:
                     # Convert other units to minutes if needed
@@ -337,30 +343,43 @@ class AppleHealthParser:
             except (ValueError, TypeError):
                 duration_minutes = 0
             
-            # Initialize workout statistics
+            # Initialize workout statistics - energy and distance come from WorkoutStatistics
             total_energy = 0
             total_distance = 0
             
-            # Parse nested workout statistics (energy burned, distance, etc.)
+            # Parse nested WorkoutStatistics elements and extract data immediately
+            # Create a list of child data to avoid reference issues with elem.clear()
+            child_stats = []
             for child in elem:
                 if child.tag == 'WorkoutStatistics':
+                    # Extract all data immediately
                     stat_type = child.get('type', '')
-                    if 'Energy' in stat_type:
-                        try:
-                            total_energy = float(child.get('sum', '0'))
-                        except (ValueError, TypeError):
-                            pass
-                    elif 'Distance' in stat_type:
-                        try:
-                            total_distance = float(child.get('sum', '0'))
-                        except (ValueError, TypeError):
-                            pass
+                    stat_sum = child.get('sum', '0')
+                    child_stats.append((stat_type, stat_sum))
+            
+            # Process the extracted child data
+            for stat_type, stat_sum in child_stats:
+                try:
+                    stat_value = float(stat_sum)
+                except (ValueError, TypeError):
+                    stat_value = 0
+                
+                # Extract energy burned from active energy statistics
+                if stat_type == 'HKQuantityTypeIdentifierActiveEnergyBurned':
+                    total_energy = stat_value
+                
+                # Extract distance from walking/running distance statistics  
+                elif stat_type == 'HKQuantityTypeIdentifierDistanceWalkingRunning':
+                    total_distance = stat_value
+                
+                # Also check for cycling distance for bike workouts
+                elif stat_type == 'HKQuantityTypeIdentifierDistanceCycling':
+                    total_distance = stat_value
             
             # Clean up workout type name
             # Apple Health uses verbose names like 'HKWorkoutActivityTypeWalking'
             # We want clean names like 'Walking' for better readability
-            raw_workout_type = elem.get('workoutActivityType', '')
-            clean_workout_type = raw_workout_type.replace('HKWorkoutActivityType', '')
+            clean_workout_type = workout_type_attr.replace('HKWorkoutActivityType', '')
             
             return {
                 'workout_type': clean_workout_type,
