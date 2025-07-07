@@ -129,15 +129,7 @@ def main():
     if len(st.session_state.messages) == 0:
         st.markdown("---")
         st.markdown("""
-        ### 💬 Welcome to LifeBuddy!
-        
-        I can analyze your health data and provide insights. Ask me about:
-        
-        **❤️ Fitness:** *"Show my heart rate summary"* • *"How many steps this week?"* • *"Recent workouts"*
-        
-        **💤 Wellness:** *"How was my sleep lately?"* • *"Analyze my stress levels"* • *"Sleep patterns"*
-        
-        **📊 Overview:** *"My activity summary"* • *"Health trends"* • *"Weekly fitness report"*
+        ### 💬 Hi there!
         
         ---
         """)

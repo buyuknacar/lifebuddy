@@ -24,8 +24,12 @@ class IntentClassifier:
             template="""Classify this query into ONE category:
 
 Categories:
-- fitness: workout plans, exercise guidance, gym routines, form tips, fitness goals, personal training, greetings, general conversation
-- health: Apple Health data analysis, steps, heart rate, sleep data, weight tracking, health metrics, "show my data", "analyze my health"
+- fitness: workout plans, exercise guidance, gym routines, form tips, fitness goals, personal training, greetings, general conversation, casual chat
+- health: ONLY when specifically asking to analyze Apple Health data like "show my steps", "analyze my heart rate", "my sleep data", "health metrics"
+
+Rules:
+- Default to FITNESS for greetings, casual conversation, and workout-related questions
+- Only choose HEALTH when explicitly asking for data analysis from Apple Health
 
 Query: {query}
 

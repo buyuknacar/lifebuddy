@@ -29,10 +29,16 @@ class FitnessAgent:
             if os.path.exists(profile_path):
                 with open(profile_path, 'r', encoding='utf-8') as f:
                     content = f.read()
-                    # Check if it's still the template (contains [Your Name] etc.)
-                    if "[Your Name]" in content or "[Your Age]" in content:
-                        return "TEMPLATE_NOT_FILLED"
-                    return content
+                    # Check if key fields have values (not just empty template)
+                    # Look for lines like "- **Name**: SomeValue" or "**Name**: SomeValue"
+                    import re
+                    name_match = re.search(r'\*\*Name\*\*:\s*(.+)', content)
+                    age_match = re.search(r'\*\*Age\*\*:\s*(.+)', content)
+                    
+                    if name_match and name_match.group(1).strip() and age_match and age_match.group(1).strip():
+                        return content  # Profile is filled out
+                    else:
+                        return "TEMPLATE_NOT_FILLED"  # Profile is empty/template
             else:
                 return "NO_PROFILE_FILE"
         except Exception as e:
@@ -129,52 +135,49 @@ class FitnessAgent:
         has_profile = self.user_profile not in ["TEMPLATE_NOT_FILLED", "NO_PROFILE_FILE", "ERROR_LOADING_PROFILE"]
         has_workout_plan = self.workout_plan_status == "HAS_PLAN"
         
+        # Debug logging
+        logger.info(f"Profile status: {self.user_profile[:100] if len(self.user_profile) > 100 else self.user_profile}")
+        logger.info(f"User name extracted: {user_name}")
+        logger.info(f"Has profile: {has_profile}")
+        logger.info(f"Workout plan status: {self.workout_plan_status}")
+        
         # Create the prompt with state information
-        prompt = PromptTemplate(
-            input_variables=["query", "user_name", "has_profile", "has_workout_plan", "user_profile", "workout_plan_status"],
-            template="""You are an AI Personal Trainer and Fitness Coach. Follow this specific conversation flow:
-
-CURRENT STATE:
-- User has profile: {has_profile}
-- User name: {user_name}
-- User has workout plan: {has_workout_plan}
-- Workout plan status: {workout_plan_status}
+        if has_profile:
+            prompt = PromptTemplate(
+                input_variables=["query", "user_name", "user_profile", "workout_plan_status"],
+                template="""You are an AI Personal Trainer and Fitness Coach for {user_name}.
 
 USER PROFILE:
 {user_profile}
 
-TOOLS AVAILABLE:
-- read_workout_plan(): Use this tool when user asks about their current workout plan or wants to modify it
-
- CONVERSATION FLOW TO FOLLOW:
- 1. If no user profile exists or is unfilled:
-    - Greet warmly as their personal trainer
-    - Explain you'd love to help them reach their fitness goals
-    - Ask them to share: Name, Age, Gender, Height, Weight, Fitness Level, Goals, Health limitations, Schedule, Equipment, Preferences
-    - Make it feel personal and encouraging
-
- 2. If user profile exists:
-    - Greet them by name warmly as their personal trainer
-    - Reference their specific fitness goal and current level
-    - Show you remember their equipment and limitations
-
-  3. Check workout plan:
-     - If no workout plan exists (status: EMPTY/NO_FILE), get excited about creating their first personalized plan
-     - If workout plan exists (status: HAS_PLAN), acknowledge they have a plan and ask how it's going
-
- 4. For greetings/casual conversation: Focus on motivation and goal-setting
- 5. If user asks about their current workout plan: Use read_workout_plan() to get the details
- 6. Then address their specific question: {query}
+WORKOUT PLAN STATUS: {workout_plan_status}
 
 INSTRUCTIONS:
-- Be warm, encouraging, and personal
-- Use their name when you know it
-- Reference their specific profile details (goals, limitations, equipment, etc.)
-- Keep responses focused and actionable
-- Don't ask too many questions at once
+1. Greet {user_name} by name warmly
+2. You have their complete profile - reference their specific goals, fitness level, and preferences
+3. If they have a workout plan (HAS_PLAN), acknowledge it. If not (EMPTY/NO_FILE), offer to create one
+4. Address their specific question: {query}
+5. Be encouraging and supportive
 
-Respond naturally following this flow:"""
-        )
+Response:"""
+            )
+        else:
+            prompt = PromptTemplate(
+                input_variables=["query"],
+                template="""You are an AI Personal Trainer and Fitness Coach.
+
+The user does not have a complete profile yet.
+
+INSTRUCTIONS:
+1. Greet them warmly as their personal trainer
+2. Explain that you need their profile information to provide personalized fitness guidance
+3. Ask them to fill out their profile with: Name, Age, Gender, Fitness Level, Goals, Limitations, Schedule, Equipment
+4. Be encouraging and explain how this will help you create better workout plans for them
+
+User Query: {query}
+
+Response:"""
+            )
         
         # Create the chain
         chain = prompt | self.llm | StrOutputParser()
@@ -194,14 +197,17 @@ Respond naturally following this flow:"""
             if workout_plan_details:
                 enhanced_query = f"{query}{workout_plan_details}"
             
-            response = chain.invoke({
-                "query": enhanced_query,
-                "user_name": user_name or "friend",
-                "has_profile": has_profile,
-                "has_workout_plan": has_workout_plan,
-                "user_profile": self.user_profile if has_profile else "No profile found",
-                "workout_plan_status": self.workout_plan_status
-            })
+            if has_profile:
+                response = chain.invoke({
+                    "query": enhanced_query,
+                    "user_name": user_name or "friend",
+                    "user_profile": self.user_profile,
+                    "workout_plan_status": self.workout_plan_status
+                })
+            else:
+                response = chain.invoke({
+                    "query": enhanced_query
+                })
             
             return response
             
