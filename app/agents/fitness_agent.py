@@ -32,12 +32,27 @@ class FitnessAgent:
                     # Check if key fields have values (not just empty template)
                     # Look for lines like "- **Name**: SomeValue" or "**Name**: SomeValue"
                     import re
-                    name_match = re.search(r'\*\*Name\*\*:\s*(.+)', content)
-                    age_match = re.search(r'\*\*Age\*\*:\s*(.+)', content)
+                    # Look for "- **Name**: something" where something might be empty
+                    name_lines = [line for line in content.split('\n') if '**Name**:' in line]
+                    age_lines = [line for line in content.split('\n') if '**Age**:' in line]
                     
-                    if name_match and name_match.group(1).strip() and age_match and age_match.group(1).strip():
+                    name_value = ""
+                    age_value = ""
+                    
+                    if name_lines:
+                        name_value = name_lines[0].split('**Name**:')[1].strip()
+                    if age_lines:
+                        age_value = age_lines[0].split('**Age**:')[1].strip()
+                    
+                    # Debug logging
+                    logger.info(f"Name value: '{name_value}'")
+                    logger.info(f"Age value: '{age_value}'")
+                    
+                    if name_value and age_value:
+                        logger.info("Profile detected as filled")
                         return content  # Profile is filled out
                     else:
+                        logger.info("Profile detected as empty/template")
                         return "TEMPLATE_NOT_FILLED"  # Profile is empty/template
             else:
                 return "NO_PROFILE_FILE"
@@ -80,13 +95,16 @@ class FitnessAgent:
     
     def _extract_user_name(self) -> str:
         """Extract user name from profile."""
+        logger.info(f"Extracting name from profile status: {self.user_profile[:50] if len(self.user_profile) > 50 else self.user_profile}")
         if self.user_profile not in ["TEMPLATE_NOT_FILLED", "NO_PROFILE_FILE", "ERROR_LOADING_PROFILE"]:
             # Look for name pattern
-            name_match = re.search(r'\*\*Name\*\*:\s*([^\n\r]+)', self.user_profile)
-            if name_match:
-                name = name_match.group(1).strip()
+            name_lines = [line for line in self.user_profile.split('\n') if '**Name**:' in line]
+            if name_lines:
+                name = name_lines[0].split('**Name**:')[1].strip()
+                logger.info(f"Found name: '{name}'")
                 if name and name != "[Your Name]":
                     return name
+        logger.info("No name found")
         return ""
     
     def _save_user_profile(self, profile_content: str) -> bool:
@@ -127,6 +145,8 @@ class FitnessAgent:
     def process_query(self, query: str, context: str = "") -> str:
         """Process a user query and return a response following the specific flow."""
         
+        logger.info(f"FITNESS AGENT CALLED with query: {query}")
+        
         # Refresh profile data
         self.refresh_profile()
         
@@ -144,42 +164,37 @@ class FitnessAgent:
         # Create the prompt with state information
         if has_profile:
             prompt = PromptTemplate(
-                input_variables=["query", "user_name", "user_profile", "workout_plan_status"],
-                template="""You are an AI Personal Trainer and Fitness Coach for {user_name}.
+                input_variables=["query", "user_name", "user_profile"],
+                template="""You are {user_name}'s personal trainer, LifeBuddy.
 
-USER PROFILE:
-{user_profile}
+Profile: {user_profile}
 
-WORKOUT PLAN STATUS: {workout_plan_status}
+User says: {query}
 
-INSTRUCTIONS:
-1. Greet {user_name} by name warmly
-2. You have their complete profile - reference their specific goals, fitness level, and preferences
-3. Workout plan status: {workout_plan_status}
-   - If HAS_PLAN: acknowledge they have a workout plan naturally
-   - If EMPTY/NO_FILE: offer to create their first workout plan
-4. Address their specific question: {query}
-5. Be encouraging and supportive
-6. NEVER mention status codes like "HAS_PLAN" - use natural language
+Rules:
+- If greeting: Just greet back professionally and ask how you can help
+- If asking about exercises/safety: Give specific advice 
+- If asking for a workout plan: Then create one
+- If asking other questions: Answer directly
+- Keep responses concise
+- Don't create workout plans unless specifically requested
 
 Response:"""
             )
         else:
             prompt = PromptTemplate(
                 input_variables=["query"],
-                template="""You are an AI Personal Trainer and Fitness Coach.
+                template="""You are a personal trainer. The user has NO PROFILE yet.
 
-The user does not have a complete profile yet.
+Say: "Hey! I'm your personal trainer. I need to create your profile first. Please tell me:
+- Your name and age
+- Your fitness goals (weight loss, muscle gain, etc.)
+- Any injuries or limitations
+- How many days per week you can work out
 
-INSTRUCTIONS:
-1. Greet them warmly as their personal trainer
-2. Explain that you need their profile information to provide personalized fitness guidance
-3. Ask them to fill out their profile with: Name, Age, Gender, Fitness Level, Goals, Limitations, Schedule, Equipment
-4. Be encouraging and explain how this will help you create better workout plans for them
+This will help me create personalized workout plans for you!"
 
-User Query: {query}
-
-Response:"""
+User said: {query}"""
             )
         
         # Create the chain
@@ -204,8 +219,7 @@ Response:"""
                 response = chain.invoke({
                     "query": enhanced_query,
                     "user_name": user_name or "friend",
-                    "user_profile": self.user_profile,
-                    "workout_plan_status": self.workout_plan_status
+                    "user_profile": self.user_profile
                 })
             else:
                 response = chain.invoke({
