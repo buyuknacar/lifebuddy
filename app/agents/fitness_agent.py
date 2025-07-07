@@ -155,9 +155,12 @@ WORKOUT PLAN STATUS: {workout_plan_status}
 INSTRUCTIONS:
 1. Greet {user_name} by name warmly
 2. You have their complete profile - reference their specific goals, fitness level, and preferences
-3. If they have a workout plan (HAS_PLAN), acknowledge it. If not (EMPTY/NO_FILE), offer to create one
+3. Workout plan status: {workout_plan_status}
+   - If HAS_PLAN: acknowledge they have a workout plan naturally
+   - If EMPTY/NO_FILE: offer to create their first workout plan
 4. Address their specific question: {query}
 5. Be encouraging and supportive
+6. NEVER mention status codes like "HAS_PLAN" - use natural language
 
 Response:"""
             )

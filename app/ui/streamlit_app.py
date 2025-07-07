@@ -173,10 +173,16 @@ def main():
             # Show thinking chain if available
             if thinking_chain:
                 with thinking_placeholder.container():
-                    st.success("🔍 **Health Data Retrieved:**")
+                    # Only show "Health Data Retrieved" if actually retrieving health data
+                    has_health_data = any(step.get('tool_name', '').startswith('get_') for step in thinking_chain)
+                    if has_health_data:
+                        st.success("🔍 **Health Data Retrieved:**")
+                    else:
+                        st.success("🤖 **AI Processing:**")
+                    
                     for i, step in enumerate(thinking_chain):
                         with st.expander(f"📊 {step.get('tool_name', 'Unknown')}", expanded=False):
-                            st.text(f"Input: {step.get('tool_input', 'N/A')} days")
+                            st.text(f"Input: {step.get('tool_input', 'N/A')}")
                             st.text("Data:")
                             st.code(step.get('tool_output', 'No output'), language="json")
             else:
