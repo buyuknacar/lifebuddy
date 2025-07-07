@@ -24,21 +24,21 @@ def test_intent_classification():
     """Test intent classification accuracy."""
     
     test_cases = [
-        # FITNESS queries
-        ("How many steps did I take today?", "fitness"),
-        ("What's my average heart rate during workouts?", "fitness"),
-        ("Show me my running performance this week", "fitness"),
+        # FITNESS queries (default for greetings, workouts, goals)
+        ("Hello, what can you help me with?", "fitness"),
         ("Create a workout plan for me", "fitness"),
         ("What exercises should I do for my bad knee?", "fitness"),
+        ("How can I improve my sleep quality?", "fitness"),
+        ("I'm feeling stressed, any advice?", "fitness"),
+        ("What foods should I avoid for better health?", "fitness"),
         
-        # GENERAL queries (includes nutrition/wellness until Phase 2)
-        ("How many calories should I eat to lose weight?", "general"),
-        ("What foods should I avoid for better health?", "general"),
-        ("How can I improve my sleep quality?", "general"),
-        ("I'm feeling stressed, any advice?", "general"),
-        ("Show me my health trends over the past month", "general"),
-        ("Hello, what can you help me with?", "general"),
-        ("Summarize my health data", "general")
+        # HEALTH queries (Apple Health data analysis)
+        ("How many steps did I take today?", "health"),
+        ("What's my average heart rate during workouts?", "health"),
+        ("Show me my running performance this week", "health"),
+        ("Show me my health trends over the past month", "health"),
+        ("Summarize my health data", "health"),
+        ("Analyze my sleep patterns", "health")
     ]
     
     print("🧪 Testing Intent Classification")
@@ -73,9 +73,9 @@ def test_agent_responses():
     """Test that each agent type produces reasonable responses."""
     
     test_queries = [
-        "How many steps did I take today?",
+        "Hello, I'm ready to get fit!",
         "Create a workout plan for me", 
-        "What's my calorie intake recommendation?",
+        "How many steps did I take today?",
         "Show me my weekly health summary"
     ]
     

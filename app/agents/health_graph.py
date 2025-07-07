@@ -81,7 +81,7 @@ class HealthAgentGraph:
         graph.add_node("load_context", self._load_session_context)
         graph.add_node("classify_intent", self._classify_intent_and_enrich)
         graph.add_node("fitness_analysis", self._fitness_analysis)
-        graph.add_node("general_analysis", self._general_analysis)
+        graph.add_node("health_analysis", self._health_analysis)
         graph.add_node("generate_response", self._generate_response)
         
         # Define the flow
@@ -90,19 +90,19 @@ class HealthAgentGraph:
         # Load context -> Intent classification
         graph.add_edge("load_context", "classify_intent")
         
-        # Intent classification -> Specialized analysis (simplified)
+        # Intent classification -> Specialized analysis (fitness-first)
         graph.add_conditional_edges(
             "classify_intent",
             self._route_by_intent,
             {
                 "fitness": "fitness_analysis",
-                "general": "general_analysis"
+                "health": "health_analysis"
             }
         )
         
         # All analysis nodes -> Response generation
         graph.add_edge("fitness_analysis", "generate_response")
-        graph.add_edge("general_analysis", "generate_response")
+        graph.add_edge("health_analysis", "generate_response")
         
         # Response generation -> End
         graph.add_edge("generate_response", END)
@@ -151,12 +151,12 @@ class HealthAgentGraph:
         
         return state
     
-    def _route_by_intent(self, state: HealthSessionState) -> Literal["fitness", "general"]:
-        """Route to appropriate analysis based on intent (simplified)."""
+    def _route_by_intent(self, state: HealthSessionState) -> Literal["fitness", "health"]:
+        """Route to appropriate analysis based on intent (fitness-first)."""
         intent = state["current_intent"]
-        if intent == "fitness":
-            return "fitness"
-        return "general"
+        if intent == "health":
+            return "health"
+        return "fitness"  # Default to fitness for everything else
     
     def _fitness_analysis(self, state: HealthSessionState) -> HealthSessionState:
         """Execute fitness-focused analysis using the profile-aware fitness agent."""
@@ -198,56 +198,27 @@ class HealthAgentGraph:
         
         return state
     
-    def _general_analysis(self, state: HealthSessionState) -> HealthSessionState:
-        """Handle general conversation using fallback persona - no health data analysis."""
-        from langchain_core.prompts import ChatPromptTemplate
-        
-        # For general/conversational queries, use simple LLM without tools
-        latest_message = state["messages"][-1]
-        user_query = str(latest_message.content)
-        
-        # Use friendly persona for all general intent queries (greetings, casual conversation, non-health topics)
-        persona_prompt = ChatPromptTemplate.from_messages([
-            ("system", """You are LifeBuddy, a friendly AI health companion. You help users analyze their personal health data and provide fitness guidance.
+    def _health_analysis(self, state: HealthSessionState) -> HealthSessionState:
+        """Handle Apple Health data analysis using health tools."""
+        return self._execute_specialized_analysis(
+            state,
+            "health",
+            self.general_tools,  # These are the Apple Health data tools
+            """You are LifeBuddy, an AI health data analyst. Help users analyze their Apple Health data:
 
-You have access to tools that can analyze:
 - Step counts and activity levels
 - Heart rate and fitness metrics  
 - Workout history and performance
 - Weight tracking and trends
 - Sleep and wellness patterns
 
-For fitness questions, I can provide personalized workout recommendations based on your profile.
-For greetings, casual conversation, and non-health topics, be warm and friendly.
-If users ask about specific health data, guide them to ask more specific questions like "show my steps" or "create a workout plan".
+User is in timezone: {timezone_name} ({timezone_offset})
+
+You have access to tools to get the user's actual health data. Use these tools to provide data-driven analysis and insights.
 
 Always speak directly to the user using "you" and "your" (not "the user").
-Keep responses concise and personable."""),
-            ("human", "{query}")
-        ])
-        
-        try:
-            chain = persona_prompt | self.llm
-            result = chain.invoke({"query": user_query})
-            response_text = str(result.content) if hasattr(result, 'content') else str(result)
-            
-            state["current_analysis"] = {
-                "domain": "general_conversation",
-                "result": response_text,
-                "tools_used": [],
-                "thinking_chain": []  # No tools used in general conversation
-            }
-            
-        except Exception as e:
-            logger.warning(f"General conversation error: {e}")
-            state["current_analysis"] = {
-                "domain": "general_conversation", 
-                "result": "Hello! I'm LifeBuddy, your AI health companion. I can help you analyze your health data including steps, workouts, heart rate, and more. What would you like to know about your health?",
-                "tools_used": [],
-                "thinking_chain": []
-            }
-        
-        return state
+Keep responses analytical and informative based on their actual data."""
+        )
     
     def _execute_specialized_analysis(self, state: HealthSessionState, domain: str, tools: List, system_prompt_template: str) -> HealthSessionState:
         """Execute specialized analysis using simple single-step tool prompting for small models."""

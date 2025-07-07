@@ -11,9 +11,7 @@ from app.core.llm_provider import llm_provider
 class HealthIntent(Enum):
     """Health-related intents for routing queries."""
     FITNESS = "fitness"
-    NUTRITION = "nutrition" 
-    WELLNESS = "wellness"
-    GENERAL = "general"
+    HEALTH = "health"
 
 
 class IntentClassifier:
@@ -26,12 +24,12 @@ class IntentClassifier:
             template="""Classify this query into ONE category:
 
 Categories:
-- fitness: specific questions about exercise, workouts, activity levels, steps, heart rate, performance data, workout plans, exercise form
-- general: greetings, casual conversation, non-health questions, general health summaries, or any questions about diet, nutrition, sleep, stress, mood (currently not specialized)
+- fitness: workout plans, exercise guidance, gym routines, form tips, fitness goals, personal training, greetings, general conversation
+- health: Apple Health data analysis, steps, heart rate, sleep data, weight tracking, health metrics, "show my data", "analyze my health"
 
 Query: {query}
 
-Answer with just the category name (fitness/general):"""
+Answer with just the category name (fitness/health):"""
         )
         self.chain = self.prompt | self.llm | StrOutputParser()
     
@@ -42,10 +40,10 @@ Answer with just the category name (fitness/general):"""
         # Map result to enum
         intent_map = {
             "fitness": HealthIntent.FITNESS,
-            "general": HealthIntent.GENERAL
+            "health": HealthIntent.HEALTH
         }
         
-        return intent_map.get(result, HealthIntent.GENERAL)
+        return intent_map.get(result, HealthIntent.FITNESS)
 
 
 # Global classifier instance
