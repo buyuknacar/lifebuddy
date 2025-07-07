@@ -10,7 +10,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from dotenv import load_dotenv
-from app.agents.router import health_router
+from app.agents.health_graph import health_graph
 from app.core.logger import get_logger
 
 # Initialize logger for test errors
@@ -53,7 +53,7 @@ def test_intent_classification():
     
     for query, expected_intent in test_cases:
         try:
-            result = health_router.route_query(query)
+            result = health_graph.chat(query)
             actual_intent = result['intent']
             is_correct = actual_intent == expected_intent
             
@@ -91,9 +91,9 @@ def test_agent_responses():
         print("-" * 30)
         
         try:
-            result = health_router.route_query(query)
+            result = health_graph.chat(query)
             print(f"Intent: {result['intent']}")
-            print(f"Agent: {result['agent']}")
+            print(f"Agent: LangGraph Health Agent")
             print(f"Response: {result['response'][:200]}...")
             
         except Exception as e:
