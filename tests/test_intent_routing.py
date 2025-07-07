@@ -28,20 +28,16 @@ def test_intent_classification():
         ("How many steps did I take today?", "fitness"),
         ("What's my average heart rate during workouts?", "fitness"),
         ("Show me my running performance this week", "fitness"),
+        ("Create a workout plan for me", "fitness"),
+        ("What exercises should I do for my bad knee?", "fitness"),
         
-        # NUTRITION queries  
-        ("How many calories should I eat to lose weight?", "nutrition"),
-        ("What foods should I avoid for better health?", "nutrition"),
-        ("Track my protein intake", "nutrition"),
-        
-        # WELLNESS queries
-        ("How can I improve my sleep quality?", "wellness"),
-        ("I'm feeling stressed, any advice?", "wellness"),
-        ("Help me with meditation", "wellness"),
-        
-        # GENERAL queries
+        # GENERAL queries (includes nutrition/wellness until Phase 2)
+        ("How many calories should I eat to lose weight?", "general"),
+        ("What foods should I avoid for better health?", "general"),
+        ("How can I improve my sleep quality?", "general"),
+        ("I'm feeling stressed, any advice?", "general"),
         ("Show me my health trends over the past month", "general"),
-        ("What's the correlation between my sleep and mood?", "general"),
+        ("Hello, what can you help me with?", "general"),
         ("Summarize my health data", "general")
     ]
     
@@ -78,8 +74,8 @@ def test_agent_responses():
     
     test_queries = [
         "How many steps did I take today?",
-        "What's my calorie intake recommendation?", 
-        "How can I reduce stress?",
+        "Create a workout plan for me", 
+        "What's my calorie intake recommendation?",
         "Show me my weekly health summary"
     ]
     

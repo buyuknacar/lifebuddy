@@ -26,14 +26,12 @@ class IntentClassifier:
             template="""Classify this query into ONE category:
 
 Categories:
-- fitness: specific questions about exercise, workouts, activity levels, steps, heart rate, performance data
-- nutrition: specific questions about diet, food, calories, weight tracking, eating habits  
-- wellness: specific questions about sleep, stress, mood, mental health data
-- general: greetings, casual conversation, non-health questions, or requests for general health summaries
+- fitness: specific questions about exercise, workouts, activity levels, steps, heart rate, performance data, workout plans, exercise form
+- general: greetings, casual conversation, non-health questions, general health summaries, or any questions about diet, nutrition, sleep, stress, mood (currently not specialized)
 
 Query: {query}
 
-Answer with just the category name (fitness/nutrition/wellness/general):"""
+Answer with just the category name (fitness/general):"""
         )
         self.chain = self.prompt | self.llm | StrOutputParser()
     
@@ -44,8 +42,6 @@ Answer with just the category name (fitness/nutrition/wellness/general):"""
         # Map result to enum
         intent_map = {
             "fitness": HealthIntent.FITNESS,
-            "nutrition": HealthIntent.NUTRITION,
-            "wellness": HealthIntent.WELLNESS,
             "general": HealthIntent.GENERAL
         }
         

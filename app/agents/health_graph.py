@@ -11,7 +11,7 @@ from langgraph.graph.message import add_messages
 from langgraph.checkpoint.sqlite import SqliteSaver
 
 from app.core.llm_provider import LLMProvider
-from app.core.health_tools import get_fitness_tools, get_nutrition_tools, get_wellness_tools, get_general_tools
+from app.core.health_tools import get_fitness_tools, get_general_tools
 from app.core.health_data_service import HealthDataService
 from app.agents.intent_classifier import IntentClassifier, HealthIntent
 from app.agents.fitness_agent import fitness_agent
@@ -64,8 +64,6 @@ class HealthAgentGraph:
         """Initialize health tools with current LLM."""
         # Use the existing tool functions that are already imported
         self.fitness_tools = get_fitness_tools()
-        self.nutrition_tools = get_nutrition_tools()
-        self.wellness_tools = get_wellness_tools()
         self.general_tools = get_general_tools()
     
     def update_llm(self, new_llm):
@@ -83,8 +81,6 @@ class HealthAgentGraph:
         graph.add_node("load_context", self._load_session_context)
         graph.add_node("classify_intent", self._classify_intent_and_enrich)
         graph.add_node("fitness_analysis", self._fitness_analysis)
-        graph.add_node("nutrition_analysis", self._nutrition_analysis)
-        graph.add_node("wellness_analysis", self._wellness_analysis)
         graph.add_node("general_analysis", self._general_analysis)
         graph.add_node("generate_response", self._generate_response)
         
@@ -94,22 +90,18 @@ class HealthAgentGraph:
         # Load context -> Intent classification
         graph.add_edge("load_context", "classify_intent")
         
-        # Intent classification -> Specialized analysis (replaces old router logic)
+        # Intent classification -> Specialized analysis (simplified)
         graph.add_conditional_edges(
             "classify_intent",
             self._route_by_intent,
             {
                 "fitness": "fitness_analysis",
-                "nutrition": "nutrition_analysis",
-                "wellness": "wellness_analysis",
                 "general": "general_analysis"
             }
         )
         
         # All analysis nodes -> Response generation
         graph.add_edge("fitness_analysis", "generate_response")
-        graph.add_edge("nutrition_analysis", "generate_response")
-        graph.add_edge("wellness_analysis", "generate_response")
         graph.add_edge("general_analysis", "generate_response")
         
         # Response generation -> End
@@ -159,11 +151,11 @@ class HealthAgentGraph:
         
         return state
     
-    def _route_by_intent(self, state: HealthSessionState) -> Literal["fitness", "nutrition", "wellness", "general"]:
-        """Route to appropriate analysis based on intent (replaces old router)."""
+    def _route_by_intent(self, state: HealthSessionState) -> Literal["fitness", "general"]:
+        """Route to appropriate analysis based on intent (simplified)."""
         intent = state["current_intent"]
-        if intent in ["fitness", "nutrition", "wellness", "general"]:
-            return intent  # type: ignore
+        if intent == "fitness":
+            return "fitness"
         return "general"
     
     def _fitness_analysis(self, state: HealthSessionState) -> HealthSessionState:
@@ -206,48 +198,6 @@ class HealthAgentGraph:
         
         return state
     
-    def _nutrition_analysis(self, state: HealthSessionState) -> HealthSessionState:
-        """Execute nutrition-focused analysis using existing tools and prompts."""
-        return self._execute_specialized_analysis(
-            state,
-            "nutrition",
-            self.nutrition_tools,
-            """You are a nutrition advisor AI with access to real health data. Help users with:
-- Diet analysis and nutritional insights
-- Calorie and macronutrient tracking
-- Weight management guidance
-- Food choice recommendations
-
-User is in timezone: {timezone_name} ({timezone_offset})
-
-You have access to tools to get the user's weight progress and activity data to calculate their caloric needs and provide personalized nutrition advice.
-
-Always speak directly to the user using "you" and "your" (not "the user").
-Keep responses evidence-based, balanced, and practical."""
-        )
-    
-    def _wellness_analysis(self, state: HealthSessionState) -> HealthSessionState:
-        """Execute wellness-focused analysis using existing tools and prompts."""
-        return self._execute_specialized_analysis(
-            state,
-            "wellness",
-            self.wellness_tools,
-            """You are a wellness mentor AI with direct access to sleep and health data. Help users with:
-- Sleep quality analysis and improvement
-- Stress management and mental health  
-- Mood tracking and emotional wellness
-- Mindfulness and self-care practices
-
-For sleep questions, immediately use the get_sleep_data tool with appropriate days (7 for recent, 30 for monthly trends).
-For heart rate questions, use get_heart_rate_summary.
-For overall wellness, use get_activity_summary.
-
-IMPORTANT: Answer ONLY what the user specifically asked. Do not ask follow-up questions or provide additional analysis unless requested. Be direct and focused on their exact question.
-
-Always speak directly to the user using "you" and "your" (not "the user").
-Keep responses supportive, thoughtful, and data-driven."""
-        )
-    
     def _general_analysis(self, state: HealthSessionState) -> HealthSessionState:
         """Handle general conversation using fallback persona - no health data analysis."""
         from langchain_core.prompts import ChatPromptTemplate
@@ -258,7 +208,7 @@ Keep responses supportive, thoughtful, and data-driven."""
         
         # Use friendly persona for all general intent queries (greetings, casual conversation, non-health topics)
         persona_prompt = ChatPromptTemplate.from_messages([
-            ("system", """You are LifeBuddy, a friendly AI health companion. You help users analyze their personal health data and provide insights.
+            ("system", """You are LifeBuddy, a friendly AI health companion. You help users analyze their personal health data and provide fitness guidance.
 
 You have access to tools that can analyze:
 - Step counts and activity levels
@@ -267,8 +217,9 @@ You have access to tools that can analyze:
 - Weight tracking and trends
 - Sleep and wellness patterns
 
-For greetings, casual conversation, and non-health topics, be warm and friendly. Introduce your capabilities when appropriate.
-If users ask about specific health data, guide them to ask more specific questions like "show my steps" or "analyze my workouts".
+For fitness questions, I can provide personalized workout recommendations based on your profile.
+For greetings, casual conversation, and non-health topics, be warm and friendly.
+If users ask about specific health data, guide them to ask more specific questions like "show my steps" or "create a workout plan".
 
 Always speak directly to the user using "you" and "your" (not "the user").
 Keep responses concise and personable."""),
