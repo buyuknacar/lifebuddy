@@ -2,7 +2,7 @@
 
 ## Basic Info
 - **Name**: 
-- **Age**: 2
+- **Age**:
 - **Gender**: 
 
 ## Fitness Level
