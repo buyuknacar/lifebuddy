@@ -5,6 +5,7 @@
 data/**/*
 !data/
 !data/.gitkeep
+!data/user_profile.md
 !data/raw/
 !data/raw/.gitkeep
 !data/raw/apple_health_export/
