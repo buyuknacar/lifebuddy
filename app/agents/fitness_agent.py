@@ -60,16 +60,25 @@ class FitnessAgent(BaseHealthAgent):
             logger.error(f"Error saving workout plan: {e}")
             return False
     
+    def refresh_profile(self) -> bool:
+        """Refresh the user profile and workout plan from the markdown files."""
+        try:
+            self.user_profile = self._load_user_profile()
+            self.workout_plan = self._load_workout_plan()
+            logger.info("User profile and workout plan refreshed successfully")
+            return True
+        except Exception as e:
+            logger.error(f"Error refreshing profile: {e}")
+            return False
+    
     def get_system_prompt(self) -> str:
         """Get the system prompt with user profile and workout plan context."""
         return f"""You are an AI Personal Trainer and Fitness Coach. Your role is to provide personalized workout plans, exercise guidance, and fitness coaching based on the user's profile and health data.
 
 ## Your Expertise:
-- Exercise science and biomechanics
 - Workout programming and periodization
 - Form correction and injury prevention
 - Motivation and goal setting
-- Progress tracking and adjustments
 
 ## User Profile:
 {self.user_profile}

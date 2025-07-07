@@ -14,6 +14,7 @@ from app.core.llm_provider import LLMProvider
 from app.core.health_tools import get_fitness_tools, get_nutrition_tools, get_wellness_tools, get_general_tools
 from app.core.health_data_service import HealthDataService
 from app.agents.intent_classifier import IntentClassifier, HealthIntent
+from app.agents.fitness_agent import fitness_agent
 from app.core.logger import get_agent_logger
 
 # Initialize logger
@@ -166,24 +167,44 @@ class HealthAgentGraph:
         return "general"
     
     def _fitness_analysis(self, state: HealthSessionState) -> HealthSessionState:
-        """Execute fitness-focused analysis using existing tools and prompts."""
-        return self._execute_specialized_analysis(
-            state, 
-            "fitness", 
-            self.fitness_tools,
-            """You are a fitness coach AI with access to real health data. Help users with:
-- Exercise recommendations and workout analysis
-- Activity tracking and performance insights  
-- Heart rate and fitness metrics interpretation
-- Movement and exercise form guidance
-
-User is in timezone: {timezone_name} ({timezone_offset})
-
-You have access to tools to get the user's actual health data including steps, heart rate, workouts, and activity summaries. Use these tools to provide personalized, data-driven advice based on their real metrics.
-
-Always speak directly to the user using "you" and "your" (not "the user").
-Keep responses practical, encouraging, and data-driven."""
-        )
+        """Execute fitness-focused analysis using the profile-aware fitness agent."""
+        from langchain_core.prompts import ChatPromptTemplate
+        
+        latest_message = state["messages"][-1]
+        user_query = str(latest_message.content)
+        
+        # Use the profile-aware fitness agent
+        try:
+            # Refresh profile to get latest data
+            fitness_agent.refresh_profile()
+            
+            # Get response from the fitness agent
+            response = fitness_agent.process_query(user_query)
+            
+            state["current_analysis"] = {
+                "domain": "fitness",
+                "result": response,
+                "tools_used": ["fitness_agent"],
+                "thinking_chain": [{
+                    "tool_name": "fitness_agent",
+                    "tool_input": user_query,
+                    "tool_output": response
+                }]
+            }
+            state["tools_used"] = ["fitness_agent"]
+            
+        except Exception as e:
+            logger.warning(f"Fitness agent error: {e}")
+            # Fallback to simple response
+            state["current_analysis"] = {
+                "domain": "fitness",
+                "result": "I'm having trouble accessing your fitness profile right now. Please make sure your user profile is filled out in data/user_profile.md for personalized recommendations.",
+                "tools_used": [],
+                "thinking_chain": []
+            }
+            state["tools_used"] = []
+        
+        return state
     
     def _nutrition_analysis(self, state: HealthSessionState) -> HealthSessionState:
         """Execute nutrition-focused analysis using existing tools and prompts."""
